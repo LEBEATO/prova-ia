@@ -130,5 +130,5 @@ export async function analyzeNotice(formData: FormData) {
     redirect(`/editais/${noticeId}?error=${encodeURIComponent(message)}`);
   }
 
-  redirect(`/editais/${noticeId}?success=Análise%20concluída%20com%20sucesso`);
+  redirect(`/editais/${noticeId}?success=1`);
 }
