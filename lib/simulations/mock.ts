@@ -370,7 +370,7 @@ function pickBank(topic: MockTopic) {
   return teacherBank;
 }
 
-export function buildMockQuestions(topics: MockTopic[], count: number) {
+export function buildMockQuestions(topics: MockTopic[], count: number, difficulties?: string[]) {
   const safeTopics =
     topics.length > 0
       ? topics
@@ -402,7 +402,7 @@ export function buildMockQuestions(topics: MockTopic[], count: number) {
       subject: topic.subject,
       topic: topic.category,
       subtopic: topic.subtopic || "conteúdo previsto no edital",
-      difficulty: index % 3 === 0 ? "fácil" : index % 3 === 1 ? "média" : "difícil",
+      difficulty: difficulties?.[index] ?? (index % 3 === 0 ? "fácil" : index % 3 === 1 ? "média" : "difícil"),
       statement: `[MODO TESTE] ${template.statement}`,
       options: template.options,
       correct_answer: template.correct_answer,
