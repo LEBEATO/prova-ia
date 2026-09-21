@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { createSimulation } from "../actions";
 
-type SearchParams = Promise<{ error?: string }>;
+type SearchParams = Promise<{ error?: string; notice?: string }>;
 
 export default async function NovoSimuladoPage({
   searchParams,
@@ -68,7 +68,7 @@ export default async function NovoSimuladoPage({
                 >
                   <option value="">Selecione um edital</option>
                   {notices.map((notice) => (
-                    <option key={notice.id} value={notice.id}>{notice.title}</option>
+                    <option key={notice.id} value={notice.id} selected={query.notice === notice.id}>{notice.title}</option>
                   ))}
                 </select>
               </div>
