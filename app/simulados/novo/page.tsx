@@ -64,11 +64,12 @@ export default async function NovoSimuladoPage({
                   id="notice_id"
                   name="notice_id"
                   required
+                  defaultValue={query.notice ?? ""}
                   className="min-h-12 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-base outline-none focus:border-violet-500 sm:text-sm"
                 >
                   <option value="">Selecione um edital</option>
                   {notices.map((notice) => (
-                    <option key={notice.id} value={notice.id} selected={query.notice === notice.id}>{notice.title}</option>
+                    <option key={notice.id} value={notice.id}>{notice.title}</option>
                   ))}
                 </select>
               </div>
