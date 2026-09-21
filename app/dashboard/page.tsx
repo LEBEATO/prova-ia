@@ -30,14 +30,14 @@ export default async function DashboardPage() {
     {
       title: "Simulados",
       description: "Gere provas alinhadas à banca e ao cargo.",
-      href: "#",
-      enabled: false,
+      href: "/simulados",
+      enabled: true,
     },
     {
       title: "Desempenho",
       description: "Veja acertos, erros recorrentes e evolução.",
-      href: "#",
-      enabled: false,
+      href: "/desempenho",
+      enabled: true,
     },
   ];
 
