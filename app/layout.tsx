@@ -14,8 +14,47 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Prova IA",
-  description: "Simulados inteligentes e personalizados para concursos.",
+  metadataBase: new URL("https://prova-ia-six.vercel.app"),
+  title: {
+    default: "Prova IA — Simulados inteligentes para concursos",
+    template: "%s | Prova IA",
+  },
+  description:
+    "Envie seu edital, gere simulados personalizados, acompanhe seu desempenho e evolua por assunto com o Prova IA.",
+  applicationName: "Prova IA",
+  keywords: [
+    "concursos",
+    "simulados",
+    "professores",
+    "edital",
+    "provas",
+    "estudos",
+    "inteligência artificial",
+  ],
+  openGraph: {
+    title: "Prova IA — Prepare-se com estratégia",
+    description:
+      "Transforme seu edital em simulados personalizados e acompanhe sua evolução por assunto.",
+    url: "https://prova-ia-six.vercel.app",
+    siteName: "Prova IA",
+    locale: "pt_BR",
+    type: "website",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Prova IA — Simulados inteligentes para concursos",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Prova IA — Prepare-se com estratégia",
+    description:
+      "Transforme seu edital em simulados personalizados e acompanhe sua evolução por assunto.",
+    images: ["/opengraph-image"],
+  },
 };
 
 export const viewport: Viewport = {
