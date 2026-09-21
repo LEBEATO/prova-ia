@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { deleteSimulation } from "./actions";
+import DeleteSimulationButton from "@/components/simulations/DeleteSimulationButton";
 
-export default async function SimuladosPage() {
+type SearchParams = Promise<{ deleted?: string }>;
+
+export default async function SimuladosPage({ searchParams }: { searchParams: SearchParams }) {
+  const query = await searchParams;
   const supabase = await createClient();
   const { data: claimsData, error } = await supabase.auth.getClaims();
 
@@ -12,9 +17,24 @@ export default async function SimuladosPage() {
 
   const { data: simulations } = await supabase
     .from("simulations")
-    .select("id, title, question_count, status, score, correct_answers, wrong_answers, created_at, completed_at")
+    .select("id, title, notice_id, question_count, status, score, correct_answers, wrong_answers, created_at, completed_at")
     .order("created_at", { ascending: false })
     .limit(30);
+
+  const noticeIds = Array.from(
+    new Set((simulations ?? []).map((simulation) => simulation.notice_id).filter(Boolean))
+  ) as string[];
+
+  const { data: analyses } = noticeIds.length
+    ? await supabase
+        .from("notice_analyses")
+        .select("notice_id, board_name")
+        .in("notice_id", noticeIds)
+    : { data: [] };
+
+  const boardByNotice = new Map(
+    (analyses ?? []).map((analysis) => [analysis.notice_id, analysis.board_name])
+  );
 
   return (
     <main className="min-h-dvh bg-slate-950 text-white">
@@ -36,6 +56,12 @@ export default async function SimuladosPage() {
       </header>
 
       <section className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
+        {query.deleted === "1" && (
+          <div className="mb-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+            Simulado excluído com sucesso.
+          </div>
+        )}
+
         <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-violet-500/15 to-transparent p-5 sm:rounded-3xl sm:p-8">
           <p className="text-sm text-violet-300">Treino personalizado</p>
           <h2 className="mt-2 text-2xl font-bold sm:text-3xl">Seus simulados</h2>
@@ -50,45 +76,68 @@ export default async function SimuladosPage() {
               Você ainda não criou nenhum simulado.
             </div>
           ) : (
-            simulations.map((simulation) => (
-              <Link
-                key={simulation.id}
-                href={`/simulados/${simulation.id}`}
-                className="rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:-translate-y-0.5 hover:border-violet-400/40 hover:bg-white/[0.07]"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <h3 className="font-semibold">{simulation.title}</h3>
-                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${
-                    simulation.status === "completed"
-                      ? "bg-emerald-400/10 text-emerald-300"
-                      : "bg-amber-400/10 text-amber-300"
-                  }`}>
-                    {simulation.status === "completed" ? "Concluído" : "Em andamento"}
-                  </span>
-                </div>
+            simulations.map((simulation) => {
+              const boardName = simulation.notice_id
+                ? boardByNotice.get(simulation.notice_id)
+                : null;
 
-                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-xl bg-slate-900/60 p-3">
-                    <p className="text-xs text-slate-500">Questões</p>
-                    <p className="mt-1 font-semibold">{simulation.question_count}</p>
+              return (
+                <div
+                  key={simulation.id}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:-translate-y-0.5 hover:border-violet-400/40 hover:bg-white/[0.07]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold">{simulation.title}</h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Banca: {boardName || "Não identificada"}
+                      </p>
+                    </div>
+
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+                      simulation.status === "completed"
+                        ? "bg-emerald-400/10 text-emerald-300"
+                        : "bg-amber-400/10 text-amber-300"
+                    }`}>
+                      {simulation.status === "completed" ? "Concluído" : "Em andamento"}
+                    </span>
                   </div>
-                  <div className="rounded-xl bg-slate-900/60 p-3">
-                    <p className="text-xs text-slate-500">Nota</p>
-                    <p className="mt-1 font-semibold">
-                      {simulation.status === "completed" ? `${simulation.score ?? 0}%` : "—"}
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-xl bg-slate-900/60 p-3">
+                      <p className="text-xs text-slate-500">Questões</p>
+                      <p className="mt-1 font-semibold">{simulation.question_count}</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-900/60 p-3">
+                      <p className="text-xs text-slate-500">Nota</p>
+                      <p className="mt-1 font-semibold">
+                        {simulation.status === "completed" ? `${simulation.score ?? 0}%` : "—"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {simulation.status === "completed" && (
+                    <p className="mt-4 text-sm text-slate-400">
+                      {simulation.correct_answers} acertos · {simulation.wrong_answers} erros
                     </p>
+                  )}
+
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <Link
+                      href={`/simulados/${simulation.id}`}
+                      className="text-sm font-semibold text-violet-300"
+                    >
+                      Abrir →
+                    </Link>
+
+                    <form action={deleteSimulation}>
+                      <input type="hidden" name="simulation_id" value={simulation.id} />
+                      <DeleteSimulationButton />
+                    </form>
                   </div>
                 </div>
-
-                {simulation.status === "completed" && (
-                  <p className="mt-4 text-sm text-slate-400">
-                    {simulation.correct_answers} acertos · {simulation.wrong_answers} erros
-                  </p>
-                )}
-
-                <p className="mt-4 text-sm font-semibold text-violet-300">Abrir →</p>
-              </Link>
-            ))
+              );
+            })
           )}
         </div>
       </section>
