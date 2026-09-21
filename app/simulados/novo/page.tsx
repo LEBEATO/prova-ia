@@ -75,6 +75,36 @@ export default async function NovoSimuladoPage({
               </div>
 
               <div>
+                <p className="mb-3 text-sm font-medium">Nível do simulado</p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  {[
+                    ["adaptive", "Adaptativo", "Aumenta conforme sua evolução"],
+                    ["beginner", "Iniciante", "Mais questões fáceis"],
+                    ["intermediate", "Intermediário", "Equilíbrio entre níveis"],
+                    ["advanced", "Avançado", "Maior carga de questões difíceis"],
+                    ["board", "Nível banca", "Mais próximo de uma prova exigente"],
+                  ].map(([value, title, description]) => (
+                    <label key={value} className="cursor-pointer">
+                      <input
+                        type="radio"
+                        name="difficulty_mode"
+                        value={value}
+                        defaultChecked={value === "adaptive"}
+                        className="peer sr-only"
+                      />
+                      <span className="block min-h-28 rounded-xl border border-white/10 bg-slate-900 p-4 transition peer-checked:border-violet-500 peer-checked:bg-violet-500/10">
+                        <span className="block font-semibold peer-checked:text-violet-300">{title}</span>
+                        <span className="mt-2 block text-xs leading-5 text-slate-500">{description}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs leading-5 text-slate-500">
+                  No modo Adaptativo, cada novo simulado usa seu histórico de acertos para aumentar gradualmente a dificuldade.
+                </p>
+              </div>
+
+              <div>
                 <p className="mb-3 text-sm font-medium">Quantidade de questões</p>
                 <div className="grid grid-cols-3 gap-3">
                   {[10, 20, 30].map((count) => (
