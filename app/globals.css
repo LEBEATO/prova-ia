@@ -1,2 +1,149 @@
 @import "tailwindcss";
 
+:root {
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #020617;
+}
+
+.motion-reveal {
+  opacity: 0;
+  transform: translate3d(0, 22px, 0) scale(0.985);
+  filter: blur(5px);
+  transition:
+    opacity 680ms var(--motion-ease),
+    transform 680ms var(--motion-ease),
+    filter 680ms var(--motion-ease);
+  transition-delay: var(--motion-delay, 0ms);
+  will-change: opacity, transform, filter;
+}
+
+.motion-reveal.motion-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: blur(0);
+}
+
+main header {
+  animation: header-enter 520ms var(--motion-ease) both;
+}
+
+main h1,
+main h2,
+main h3 {
+  text-wrap: balance;
+}
+
+main a,
+main button,
+main label {
+  -webkit-tap-highlight-color: transparent;
+}
+
+main a,
+main button {
+  transition:
+    transform 220ms var(--motion-ease),
+    box-shadow 220ms var(--motion-ease),
+    border-color 220ms var(--motion-ease),
+    background-color 220ms var(--motion-ease),
+    color 220ms var(--motion-ease);
+}
+
+main a:hover,
+main button:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+main a:active,
+main button:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+main input,
+main select,
+main textarea {
+  transition:
+    border-color 220ms var(--motion-ease),
+    box-shadow 220ms var(--motion-ease),
+    background-color 220ms var(--motion-ease);
+}
+
+main input:focus,
+main select:focus,
+main textarea:focus {
+  box-shadow: 0 0 0 3px rgb(139 92 246 / 0.14);
+}
+
+main article,
+main aside,
+main .grid > * {
+  transform-origin: center bottom;
+}
+
+main article:hover,
+main aside:hover {
+  border-color: rgb(139 92 246 / 0.28);
+}
+
+@keyframes header-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+main [class*="bg-violet-400"].h-2,
+main [class*="bg-emerald-400"].h-2 {
+  animation: soft-pulse 2.4s ease-in-out infinite;
+}
+
+@media (hover: none) {
+  main a:hover,
+  main button:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .motion-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}
