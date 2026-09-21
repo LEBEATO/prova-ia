@@ -2,49 +2,19 @@
 
 import { useEffect } from "react";
 
-const REVEAL_SELECTOR = [
-  "main > header",
-  "main > section",
-  "main article",
-  "main aside",
-  "main .grid > *",
-  "main form > div",
-  "main table",
-  "main footer",
-].join(",");
+const SELECTORS = {
+  text: "main h1, main h2, main h3, main p",
+  cards:
+    "main article, main aside, main section > div > div, main .grid > *, main form > div",
+  actions: "main a, main button",
+  tables: "main table",
+};
 
 export default function GlobalMotion() {
   useEffect(() => {
     const reduceMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
     ).matches;
-
-    const prepareElements = () => {
-      const elements = Array.from(
-        document.querySelectorAll<HTMLElement>(REVEAL_SELECTOR)
-      );
-
-      elements.forEach((element, index) => {
-        if (element.dataset.motionReady === "true") return;
-
-        element.dataset.motionReady = "true";
-        element.classList.add("motion-reveal");
-        element.style.setProperty(
-          "--motion-delay",
-          `${Math.min(index % 6, 5) * 55}ms`
-        );
-
-        if (reduceMotion) {
-          element.classList.add("motion-visible");
-        }
-      });
-
-      return elements;
-    };
-
-    const elements = prepareElements();
-
-    if (reduceMotion) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -61,14 +31,42 @@ export default function GlobalMotion() {
       }
     );
 
-    elements.forEach((element) => observer.observe(element));
+    const prepare = () => {
+      const groups: Array<[string, string]> = [
+        [SELECTORS.text, "motion-text"],
+        [SELECTORS.cards, "motion-card"],
+        [SELECTORS.actions, "motion-action"],
+        [SELECTORS.tables, "motion-table"],
+      ];
+
+      groups.forEach(([selector, className]) => {
+        const elements = Array.from(
+          document.querySelectorAll<HTMLElement>(selector)
+        );
+
+        elements.forEach((element, index) => {
+          if (element.dataset.motionType) return;
+
+          element.dataset.motionType = className;
+          element.classList.add("motion-reveal", className);
+          element.style.setProperty(
+            "--motion-delay",
+            `${Math.min(index % 5, 4) * 70}ms`
+          );
+
+          if (reduceMotion) {
+            element.classList.add("motion-visible");
+          } else {
+            observer.observe(element);
+          }
+        });
+      });
+    };
+
+    prepare();
 
     const mutationObserver = new MutationObserver(() => {
-      prepareElements().forEach((element) => {
-        if (!element.classList.contains("motion-visible")) {
-          observer.observe(element);
-        }
-      });
+      prepare();
     });
 
     mutationObserver.observe(document.body, {
