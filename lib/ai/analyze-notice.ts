@@ -47,6 +47,54 @@ function extractOutputText(payload: unknown): string | null {
 }
 
 export async function analyzeNoticePdf(fileUrl: string): Promise<NoticeAnalysis> {
+  if (process.env.AI_MOCK_MODE === "true") {
+    return {
+      board_name: "BANCA DE TESTE",
+      organization_name: "ÓRGÃO DE TESTE",
+      city: "Poços de Caldas",
+      state: "MG",
+      position_name: "Professor I (teste)",
+      exam_date: "",
+      total_questions: 30,
+      summary:
+        "MODO TESTE: estes dados não foram extraídos do PDF. Servem apenas para validar o fluxo completo do Prova IA sem consumir créditos da API.",
+      confidence: 0,
+      topics: [
+        {
+          category: "Conhecimentos Gerais",
+          subject: "Língua Portuguesa",
+          subtopic: "Interpretação de texto",
+          expected_questions: 5,
+          weight: 1,
+          source_reference: "MODO TESTE",
+        },
+        {
+          category: "Conhecimentos Pedagógicos",
+          subject: "Legislação Educacional",
+          subtopic: "LDB / BNCC",
+          expected_questions: 10,
+          weight: 1,
+          source_reference: "MODO TESTE",
+        },
+        {
+          category: "Conhecimentos Específicos",
+          subject: "Conteúdo do cargo",
+          subtopic: "Professor I",
+          expected_questions: 10,
+          weight: 1,
+          source_reference: "MODO TESTE",
+        },
+        {
+          category: "Conhecimentos Locais",
+          subject: "Município",
+          subtopic: "História e aspectos locais",
+          expected_questions: 5,
+          weight: 1,
+          source_reference: "MODO TESTE",
+        },
+      ],
+    };
+  }
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
