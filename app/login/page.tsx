@@ -9,14 +9,14 @@ export default async function LoginPage({
   const params = await searchParams;
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-12 text-white">
-      <div className="mx-auto flex min-h-[80vh] max-w-md items-center">
-        <div className="w-full rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur">
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-violet-400">
+    <main className="min-h-dvh bg-slate-950 px-4 py-6 text-white sm:px-6 sm:py-10 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md items-center sm:min-h-[calc(100dvh-5rem)]">
+        <div className="w-full rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur sm:rounded-3xl sm:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-violet-400 sm:text-sm">
             Prova IA
           </p>
-          <h1 className="mt-3 text-3xl font-bold">Entrar</h1>
-          <p className="mt-2 text-sm text-slate-400">
+          <h1 className="mt-3 text-2xl font-bold sm:text-3xl">Entrar</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
             Acesse seus editais, simulados e evolução.
           </p>
 
@@ -43,7 +43,7 @@ export default async function LoginPage({
                 type="email"
                 required
                 autoComplete="email"
-                className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none transition focus:border-violet-500"
+                className="min-h-12 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-base outline-none transition focus:border-violet-500 sm:text-sm"
                 placeholder="voce@email.com"
               />
             </div>
@@ -59,20 +59,20 @@ export default async function LoginPage({
                 required
                 minLength={6}
                 autoComplete="current-password"
-                className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none transition focus:border-violet-500"
+                className="min-h-12 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-base outline-none transition focus:border-violet-500 sm:text-sm"
                 placeholder="Sua senha"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full rounded-xl bg-violet-600 px-4 py-3 font-semibold transition hover:bg-violet-500"
+              className="min-h-12 w-full rounded-xl bg-violet-600 px-4 py-3 font-semibold transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:ring-offset-2 focus:ring-offset-slate-950"
             >
               Entrar
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-slate-400">
+          <p className="mt-6 text-center text-sm leading-6 text-slate-400">
             Ainda não possui conta?{" "}
             <Link href="/cadastro" className="font-semibold text-violet-400 hover:text-violet-300">
               Criar conta
