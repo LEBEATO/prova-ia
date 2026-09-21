@@ -12,40 +12,48 @@ body {
   background: #020617;
 }
 
+/* Reveal global */
 .motion-reveal {
   opacity: 0;
-  transform: translate3d(0, 22px, 0) scale(0.985);
-  filter: blur(5px);
   transition:
-    opacity 680ms var(--motion-ease),
-    transform 680ms var(--motion-ease),
-    filter 680ms var(--motion-ease);
+    opacity 700ms var(--motion-ease),
+    transform 700ms var(--motion-ease),
+    filter 700ms var(--motion-ease);
   transition-delay: var(--motion-delay, 0ms);
   will-change: opacity, transform, filter;
 }
 
-.motion-reveal.motion-visible {
+.motion-text {
+  transform: translate3d(0, 18px, 0);
+  filter: blur(4px);
+}
+
+.motion-card {
+  transform: translate3d(0, 28px, 0) scale(0.985);
+  filter: blur(5px);
+}
+
+.motion-action {
+  transform: translate3d(0, 10px, 0) scale(0.98);
+}
+
+.motion-table {
+  transform: translate3d(0, 24px, 0);
+  filter: blur(3px);
+}
+
+.motion-visible {
   opacity: 1;
   transform: translate3d(0, 0, 0) scale(1);
   filter: blur(0);
 }
 
+/* Header entra suavemente */
 main header {
-  animation: header-enter 520ms var(--motion-ease) both;
+  animation: header-enter 560ms var(--motion-ease) both;
 }
 
-main h1,
-main h2,
-main h3 {
-  text-wrap: balance;
-}
-
-main a,
-main button,
-main label {
-  -webkit-tap-highlight-color: transparent;
-}
-
+/* Botões e links */
 main a,
 main button {
   transition:
@@ -58,44 +66,91 @@ main button {
 
 main a:hover,
 main button:hover:not(:disabled) {
-  transform: translateY(-2px);
+  transform: translateY(-2px) scale(1.015);
 }
 
 main a:active,
 main button:active:not(:disabled) {
-  transform: translateY(0) scale(0.98);
+  transform: translateY(0) scale(0.97);
 }
 
+/* Cards com sensação premium */
+main article,
+main aside,
+main .grid > * {
+  transform-origin: center bottom;
+  transition:
+    transform 260ms var(--motion-ease),
+    border-color 260ms var(--motion-ease),
+    box-shadow 260ms var(--motion-ease),
+    background-color 260ms var(--motion-ease);
+}
+
+main article:hover,
+main aside:hover,
+main .grid > *:hover {
+  border-color: rgb(139 92 246 / 0.32);
+  box-shadow: 0 18px 50px rgb(76 29 149 / 0.12);
+}
+
+/* Inputs */
 main input,
 main select,
 main textarea {
   transition:
     border-color 220ms var(--motion-ease),
     box-shadow 220ms var(--motion-ease),
-    background-color 220ms var(--motion-ease);
+    background-color 220ms var(--motion-ease),
+    transform 220ms var(--motion-ease);
 }
 
 main input:focus,
 main select:focus,
 main textarea:focus {
   box-shadow: 0 0 0 3px rgb(139 92 246 / 0.14);
+  transform: translateY(-1px);
 }
 
-main article,
-main aside,
-main .grid > * {
-  transform-origin: center bottom;
+/* Barras e indicadores */
+main [class*="rounded-full"][class*="bg-violet"],
+main [class*="rounded-full"][class*="bg-emerald"] {
+  animation: soft-pulse 2.6s ease-in-out infinite;
 }
 
-main article:hover,
-main aside:hover {
-  border-color: rgb(139 92 246 / 0.28);
+/* Animação da home: brilho suave */
+main [class*="blur-3xl"] {
+  animation: glow-float 8s ease-in-out infinite alternate;
+}
+
+/* Evita movimentos laterais agressivos em telas pequenas */
+@media (max-width: 640px) {
+  .motion-text,
+  .motion-card,
+  .motion-action,
+  .motion-table {
+    transform: translate3d(0, 16px, 0) scale(0.99);
+  }
+
+  .motion-visible {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@media (hover: none) {
+  main a:hover,
+  main button:hover:not(:disabled),
+  main article:hover,
+  main aside:hover,
+  main .grid > *:hover {
+    transform: none;
+    box-shadow: none;
+  }
 }
 
 @keyframes header-enter {
   from {
     opacity: 0;
-    transform: translateY(-12px);
+    transform: translateY(-14px);
   }
   to {
     opacity: 1;
@@ -106,24 +161,21 @@ main aside:hover {
 @keyframes soft-pulse {
   0%,
   100% {
-    opacity: 0.7;
-    transform: scale(1);
+    opacity: 0.75;
   }
   50% {
     opacity: 1;
-    transform: scale(1.08);
   }
 }
 
-main [class*="bg-violet-400"].h-2,
-main [class*="bg-emerald-400"].h-2 {
-  animation: soft-pulse 2.4s ease-in-out infinite;
-}
-
-@media (hover: none) {
-  main a:hover,
-  main button:hover:not(:disabled) {
-    transform: none;
+@keyframes glow-float {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.7;
+  }
+  to {
+    transform: translate3d(0, 14px, 0) scale(1.06);
+    opacity: 1;
   }
 }
 
