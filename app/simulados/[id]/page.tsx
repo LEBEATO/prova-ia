@@ -28,7 +28,7 @@ export default async function SimuladoDetalhesPage({
 
   const { data: simulation } = await supabase
     .from("simulations")
-    .select("id, title, status, question_count, score, correct_answers, wrong_answers, created_at, completed_at")
+    .select("id, title, status, question_count, score, correct_answers, wrong_answers, created_at, completed_at, difficulty_mode, difficulty_level, difficulty_profile, sequence_number")
     .eq("id", id)
     .maybeSingle();
 
@@ -108,7 +108,9 @@ export default async function SimuladoDetalhesPage({
             <div>
               <p className="text-sm text-violet-300">MODO TESTE</p>
               <h2 className="mt-2 text-2xl font-bold sm:text-3xl">{simulation.title}</h2>
-              <p className="mt-2 text-sm text-slate-400">{simulation.question_count} questões</p>
+              <p className="mt-2 text-sm text-slate-400">
+                {simulation.question_count} questões · {simulation.difficulty_level} · simulado #{simulation.sequence_number}
+              </p>
             </div>
             <span className={`w-fit rounded-full px-3 py-1.5 text-xs font-semibold ${
               simulation.status === "completed"
@@ -117,6 +119,21 @@ export default async function SimuladoDetalhesPage({
             }`}>
               {simulation.status === "completed" ? "Concluído" : "Em andamento"}
             </span>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-slate-900/60 p-3">
+              <p className="text-xs text-slate-500">Fáceis</p>
+              <p className="mt-1 font-semibold">{Number((simulation.difficulty_profile as Record<string, number> | null)?.easy ?? 0)}%</p>
+            </div>
+            <div className="rounded-xl bg-slate-900/60 p-3">
+              <p className="text-xs text-slate-500">Médias</p>
+              <p className="mt-1 font-semibold">{Number((simulation.difficulty_profile as Record<string, number> | null)?.medium ?? 0)}%</p>
+            </div>
+            <div className="rounded-xl bg-slate-900/60 p-3">
+              <p className="text-xs text-slate-500">Difíceis</p>
+              <p className="mt-1 font-semibold">{Number((simulation.difficulty_profile as Record<string, number> | null)?.hard ?? 0)}%</p>
+            </div>
           </div>
 
           {simulation.status === "completed" && (
