@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { logout } from "./actions";
@@ -18,6 +19,27 @@ export default async function DashboardPage() {
     .select("full_name")
     .eq("id", userId)
     .maybeSingle();
+
+  const cards = [
+    {
+      title: "Editais",
+      description: "Envie e analise o edital do seu concurso.",
+      href: "/editais",
+      enabled: true,
+    },
+    {
+      title: "Simulados",
+      description: "Gere provas alinhadas à banca e ao cargo.",
+      href: "#",
+      enabled: false,
+    },
+    {
+      title: "Desempenho",
+      description: "Veja acertos, erros recorrentes e evolução.",
+      href: "#",
+      enabled: false,
+    },
+  ];
 
   return (
     <main className="min-h-dvh bg-slate-950 text-white">
@@ -48,25 +70,43 @@ export default async function DashboardPage() {
             {profile?.full_name || email || "Estudante"}
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
-            Em breve você poderá enviar seu edital, gerar simulados personalizados
-            e acompanhar seus erros mais frequentes.
+            Envie seu edital, acompanhe os simulados e veja sua evolução por assunto.
           </p>
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-4 sm:mt-8 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
-          {[
-            ["Editais", "Envie e analise o edital do seu concurso."],
-            ["Simulados", "Gere provas alinhadas à banca e ao cargo."],
-            ["Desempenho", "Veja acertos, erros recorrentes e evolução."],
-          ].map(([title, description]) => (
-            <div
-              key={title}
-              className="min-w-0 rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6"
-            >
-              <h3 className="text-base font-semibold sm:text-lg">{title}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">{description}</p>
-            </div>
-          ))}
+          {cards.map((card) =>
+            card.enabled ? (
+              <Link
+                key={card.title}
+                href={card.href}
+                className="min-w-0 rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:-translate-y-0.5 hover:border-violet-400/40 hover:bg-white/[0.07] sm:p-6"
+              >
+                <h3 className="text-base font-semibold sm:text-lg">{card.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  {card.description}
+                </p>
+                <p className="mt-5 text-sm font-semibold text-violet-300">
+                  Abrir →
+                </p>
+              </Link>
+            ) : (
+              <div
+                key={card.title}
+                className="min-w-0 rounded-2xl border border-white/10 bg-white/5 p-5 opacity-70 sm:p-6"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold sm:text-lg">{card.title}</h3>
+                  <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] uppercase tracking-wide text-slate-400">
+                    Em breve
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  {card.description}
+                </p>
+              </div>
+            )
+          )}
         </div>
       </section>
     </main>
