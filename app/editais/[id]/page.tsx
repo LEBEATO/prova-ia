@@ -100,9 +100,9 @@ export default async function EditalDetalhesPage({
           </div>
         )}
 
-        {query.success && (
+        {query.success === "1" && (
           <div className="mb-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
-            {query.success}
+            Análise concluída com sucesso.
           </div>
         )}
 
