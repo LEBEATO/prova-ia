@@ -297,3 +297,157 @@ export async function submitSimulation(formData: FormData) {
   revalidatePath("/desempenho");
   redirect(`/simulados/${simulationId}?completed=1`);
 }
+
+
+export async function deleteSimulation(formData: FormData) {
+  const simulationId = String(formData.get("simulation_id") ?? "");
+  const supabase = await createClient();
+
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  if (claimsError || !claimsData?.claims?.sub) {
+    redirect("/login");
+  }
+
+  const userId = claimsData.claims.sub;
+
+  const { data: simulation } = await supabase
+    .from("simulations")
+    .select("id, user_id")
+    .eq("id", simulationId)
+    .maybeSingle();
+
+  if (!simulation || simulation.user_id !== userId) {
+    redirect("/simulados");
+  }
+
+  const { data: links } = await supabase
+    .from("simulation_questions")
+    .select("id, question_id")
+    .eq("simulation_id", simulationId);
+
+  const linkIds = (links ?? []).map((item) => item.id);
+  const questionIds = (links ?? [])
+    .map((item) => item.question_id)
+    .filter(Boolean) as string[];
+
+  if (linkIds.length) {
+    await supabase
+      .from("user_answers")
+      .delete()
+      .eq("user_id", userId)
+      .in("simulation_question_id", linkIds);
+  }
+
+  await supabase
+    .from("simulation_questions")
+    .delete()
+    .eq("simulation_id", simulationId);
+
+  await supabase
+    .from("simulations")
+    .delete()
+    .eq("id", simulationId)
+    .eq("user_id", userId);
+
+  if (questionIds.length) {
+    await supabase
+      .from("questions")
+      .delete()
+      .eq("created_by", userId)
+      .in("id", questionIds);
+  }
+
+  await supabase
+    .from("user_performance")
+    .delete()
+    .eq("user_id", userId);
+
+  const { data: remainingAnswers } = await supabase
+    .from("user_answers")
+    .select("simulation_question_id, correct")
+    .eq("user_id", userId);
+
+  const remainingLinkIds = (remainingAnswers ?? []).map(
+    (answer) => answer.simulation_question_id
+  );
+
+  if (remainingLinkIds.length) {
+    const { data: remainingLinks } = await supabase
+      .from("simulation_questions")
+      .select("id, question_id")
+      .in("id", remainingLinkIds);
+
+    const remainingQuestionIds = (remainingLinks ?? [])
+      .map((item) => item.question_id)
+      .filter(Boolean) as string[];
+
+    if (remainingQuestionIds.length) {
+      const { data: remainingQuestions } = await supabase
+        .from("questions")
+        .select("id, subject, topic, subtopic")
+        .in("id", remainingQuestionIds);
+
+      const linkToQuestion = new Map(
+        (remainingLinks ?? []).map((item) => [item.id, item.question_id])
+      );
+      const questionMap = new Map(
+        (remainingQuestions ?? []).map((question) => [question.id, question])
+      );
+
+      const groups = new Map<
+        string,
+        {
+          subject: string;
+          topic: string;
+          subtopic: string;
+          total: number;
+          correct: number;
+        }
+      >();
+
+      for (const answer of remainingAnswers ?? []) {
+        const questionId = linkToQuestion.get(answer.simulation_question_id);
+        if (!questionId) continue;
+        const question = questionMap.get(questionId);
+        if (!question) continue;
+
+        const subject = question.subject || "Não identificado";
+        const topic = question.topic || "Geral";
+        const subtopic = question.subtopic || "Geral";
+        const key = `${subject}||${topic}||${subtopic}`;
+
+        const current = groups.get(key) ?? {
+          subject,
+          topic,
+          subtopic,
+          total: 0,
+          correct: 0,
+        };
+
+        current.total += 1;
+        if (answer.correct) current.correct += 1;
+        groups.set(key, current);
+      }
+
+      if (groups.size) {
+        await supabase.from("user_performance").insert(
+          Array.from(groups.values()).map((group) => ({
+            user_id: userId,
+            subject: group.subject,
+            topic: group.topic,
+            subtopic: group.subtopic,
+            total_answers: group.total,
+            correct_answers: group.correct,
+            wrong_answers: group.total - group.correct,
+            accuracy: Number(((group.correct / group.total) * 100).toFixed(2)),
+            last_answered_at: new Date().toISOString(),
+          }))
+        );
+      }
+    }
+  }
+
+  revalidatePath("/simulados");
+  revalidatePath("/desempenho");
+  redirect("/simulados?deleted=1");
+}
