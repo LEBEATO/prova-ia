@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { buildMockQuestions } from "@/lib/simulations/mock";
+import { difficultySchedule, profileForMode, type DifficultyMode } from "@/lib/simulations/adaptive";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -13,6 +14,10 @@ function normalizeCount(value: FormDataEntryValue | null) {
 export async function createSimulation(formData: FormData) {
   const noticeId = String(formData.get("notice_id") ?? "");
   const questionCount = normalizeCount(formData.get("question_count"));
+  const requestedMode = String(formData.get("difficulty_mode") ?? "adaptive") as DifficultyMode;
+  const difficultyMode: DifficultyMode = ["adaptive", "beginner", "intermediate", "advanced", "board"].includes(requestedMode)
+    ? requestedMode
+    : "adaptive";
 
   const supabase = await createClient();
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
@@ -33,10 +38,41 @@ export async function createSimulation(formData: FormData) {
     redirect("/simulados/novo?error=Selecione%20um%20edital%20já%20analisado");
   }
 
-  const { data: topics } = await supabase
-    .from("notice_topics")
-    .select("category, subject, subtopic, expected_questions")
-    .eq("notice_id", noticeId);
+  const [{ data: topics }, completedResult, { data: performanceRows }] = await Promise.all([
+    supabase
+      .from("notice_topics")
+      .select("category, subject, subtopic, expected_questions")
+      .eq("notice_id", noticeId),
+    supabase
+      .from("simulations")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("status", "completed"),
+    supabase
+      .from("user_performance")
+      .select("total_answers, correct_answers")
+      .eq("user_id", userId),
+  ]);
+
+  const completedSimulations = completedResult.count ?? 0;
+  const performanceTotals = (performanceRows ?? []).reduce(
+    (acc, row) => ({
+      total: acc.total + Number(row.total_answers ?? 0),
+      correct: acc.correct + Number(row.correct_answers ?? 0),
+    }),
+    { total: 0, correct: 0 }
+  );
+  const averageAccuracy =
+    performanceTotals.total > 0
+      ? (performanceTotals.correct / performanceTotals.total) * 100
+      : 0;
+
+  const difficulty = profileForMode(
+    difficultyMode,
+    completedSimulations,
+    averageAccuracy
+  );
+  const schedule = difficultySchedule(questionCount, difficulty.profile);
 
   const { data: simulation, error: simulationError } = await supabase
     .from("simulations")
@@ -47,6 +83,10 @@ export async function createSimulation(formData: FormData) {
       question_count: questionCount,
       status: "in_progress",
       started_at: new Date().toISOString(),
+      difficulty_mode: difficultyMode,
+      difficulty_level: difficulty.level,
+      difficulty_profile: difficulty.profile,
+      sequence_number: completedSimulations + 1,
     })
     .select("id")
     .single();
@@ -55,7 +95,7 @@ export async function createSimulation(formData: FormData) {
     redirect("/simulados/novo?error=Não%20foi%20possível%20criar%20o%20simulado");
   }
 
-  const generated = buildMockQuestions(topics ?? [], questionCount);
+  const generated = buildMockQuestions(topics ?? [], questionCount, schedule);
 
   const { data: questions, error: questionError } = await supabase
     .from("questions")
