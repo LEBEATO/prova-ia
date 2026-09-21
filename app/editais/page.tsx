@@ -139,9 +139,10 @@ export default async function EditaisPage({
               </div>
             ) : (
               notices.map((notice) => (
-                <div
+                <Link
                   key={notice.id}
-                  className="rounded-xl border border-white/10 bg-slate-900/70 p-4"
+                  href={`/editais/${notice.id}`}
+                  className="block rounded-xl border border-white/10 bg-slate-900/70 p-4 transition hover:border-violet-400/40 hover:bg-slate-900"
                 >
                   <p className="break-words font-semibold">{notice.title}</p>
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
@@ -156,8 +157,11 @@ export default async function EditaisPage({
                         timeStyle: "short",
                       }).format(new Date(notice.uploaded_at))}
                     </span>
+                    <span className="ml-auto font-semibold text-violet-300">
+                      Abrir →
+                    </span>
                   </div>
-                </div>
+                </Link>
               ))
             )}
           </div>
