@@ -80,7 +80,6 @@ export async function analyzeNoticePdf(fileUrl: string): Promise<NoticeAnalysis>
             {
               type: "input_file",
               file_url: fileUrl,
-              filename: "edital.pdf",
             },
           ],
         },
