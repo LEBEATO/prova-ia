@@ -155,6 +155,15 @@ export default async function EditalDetalhesPage({
                     : "Analisar com IA"}
               </button>
             </form>
+
+            {notice.analysis_status === "completed" && (
+              <Link
+                href={`/simulados/novo?notice=${notice.id}`}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-violet-400/30 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-200 transition hover:bg-violet-400/15"
+              >
+                Gerar simulado
+              </Link>
+            )}
           </div>
         </div>
 
