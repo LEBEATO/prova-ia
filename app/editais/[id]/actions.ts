@@ -118,7 +118,6 @@ export async function analyzeNotice(formData: FormData) {
 
     revalidatePath("/editais");
     revalidatePath(`/editais/${noticeId}`);
-    redirect(`/editais/${noticeId}?success=Análise%20concluída%20com%20sucesso`);
   } catch (error) {
     await supabase
       .from("notices")
@@ -130,4 +129,6 @@ export async function analyzeNotice(formData: FormData) {
 
     redirect(`/editais/${noticeId}?error=${encodeURIComponent(message)}`);
   }
+
+  redirect(`/editais/${noticeId}?success=Análise%20concluída%20com%20sucesso`);
 }
