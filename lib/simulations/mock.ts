@@ -354,6 +354,53 @@ const localBank: MockQuestionTemplate[] = [
   },
 ];
 
+
+function contextualizeQuestion(
+  template: MockQuestionTemplate,
+  topic: MockTopic,
+  difficulty: string,
+  index: number
+) {
+  if (difficulty === "fácil") {
+    return template;
+  }
+
+  const text = `${topic.category} ${topic.subject} ${topic.subtopic ?? ""}`.toLowerCase();
+
+  const mediumLead = text.includes("portugu")
+    ? "Em uma atividade de leitura e análise linguística, o professor propõe uma questão que exige atenção ao funcionamento da língua no contexto apresentado."
+    : text.includes("município") || text.includes("local")
+      ? "Ao preparar-se para uma prova municipal, o candidato precisa relacionar o conteúdo do edital às fontes oficiais e ao contexto administrativo local."
+      : "Durante uma situação pedagógica concreta, o professor precisa relacionar fundamentos teóricos, legislação educacional e tomada de decisão em sala de aula.";
+
+  const hardLeads = [
+    text.includes("portugu")
+      ? "Em uma proposta de avaliação voltada à leitura crítica, o candidato precisa interpretar não apenas a estrutura formal do enunciado, mas também as relações sintáticas, semânticas e discursivas envolvidas. A questão exige atenção ao uso da língua em contexto e à função dos elementos destacados."
+      : text.includes("município") || text.includes("local")
+        ? "Uma rede municipal está revisando documentos oficiais, legislação local e conteúdos históricos cobrados em concurso. O candidato precisa distinguir informação normativa, dado histórico confiável e interpretação baseada em fonte oficial, evitando generalizações que não estejam sustentadas pelo edital."
+        : "Em uma reunião pedagógica, a equipe docente analisa uma situação envolvendo planejamento, avaliação, inclusão, currículo e aprendizagem. A decisão mais adequada deve considerar princípios educacionais, legislação vigente e coerência pedagógica, evitando soluções simplistas ou meramente burocráticas.",
+    text.includes("pedag") || text.includes("ldb") || text.includes("bncc")
+      ? "Considere que a escola está reorganizando seu trabalho pedagógico após identificar dificuldades de aprendizagem persistentes em diferentes turmas. A equipe precisa tomar decisões articulando avaliação, planejamento, equidade, participação e os referenciais legais da Educação Básica."
+      : "Uma professora acompanha uma turma heterogênea, com diferentes ritmos, níveis de autonomia e necessidades de aprendizagem. Para responder adequadamente, é necessário analisar a situação de forma integrada e justificar a alternativa mais coerente com uma prática pedagógica intencional.",
+  ];
+
+  if (difficulty === "média") {
+    return {
+      ...template,
+      statement: `${mediumLead} ${template.statement}`,
+      explanation: `${template.explanation} Nesta questão, o ponto principal é aplicar o conceito ao contexto descrito, e não apenas reconhecer uma definição isolada.`,
+    };
+  }
+
+  const lead = hardLeads[index % hardLeads.length];
+
+  return {
+    ...template,
+    statement: `${lead} A partir dessa situação, analise cuidadosamente as alternativas. ${template.statement}`,
+    explanation: `${template.explanation} Em nível difícil, a resposta depende de relacionar o conceito central ao contexto, descartando alternativas parcialmente verdadeiras, porém inadequadas à situação apresentada.`,
+  };
+}
+
 function pickBank(topic: MockTopic) {
   const text = `${topic.category} ${topic.subject} ${topic.subtopic ?? ""}`.toLowerCase();
 
@@ -398,15 +445,20 @@ export function buildMockQuestions(topics: MockTopic[], count: number, difficult
     const template = bank[bankIndex % bank.length];
     bankIndexes.set(bankKey, bankIndex + 1);
 
+    const difficulty =
+      difficulties?.[index] ??
+      (index % 3 === 0 ? "fácil" : index % 3 === 1 ? "média" : "difícil");
+    const enriched = contextualizeQuestion(template, topic, difficulty, index);
+
     return {
       subject: topic.subject,
       topic: topic.category,
       subtopic: topic.subtopic || "conteúdo previsto no edital",
-      difficulty: difficulties?.[index] ?? (index % 3 === 0 ? "fácil" : index % 3 === 1 ? "média" : "difícil"),
-      statement: `[MODO TESTE] ${template.statement}`,
-      options: template.options,
-      correct_answer: template.correct_answer,
-      explanation: `MODO TESTE: ${template.explanation}`,
+      difficulty,
+      statement: `[MODO TESTE] ${enriched.statement}`,
+      options: enriched.options,
+      correct_answer: enriched.correct_answer,
+      explanation: `MODO TESTE: ${enriched.explanation}`,
       source_reference: "MODO TESTE",
       is_ai_generated: true,
     };
