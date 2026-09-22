@@ -5,16 +5,19 @@ const features = [
     title: "Edital inteligente",
     description:
       "Envie o PDF do concurso e organize banca, cargo, conteúdos, legislação e conhecimentos locais.",
+    icon: "document",
   },
   {
     title: "Simulados personalizados",
     description:
       "Monte provas de 10, 20 ou 30 questões alinhadas ao conteúdo do seu edital.",
+    icon: "exam",
   },
   {
     title: "Desempenho por assunto",
     description:
       "Acompanhe acertos, erros recorrentes e os temas que mais precisam de revisão.",
+    icon: "chart",
   },
 ];
 
@@ -224,7 +227,28 @@ export default function Home() {
                 key={feature.title}
                 className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:-translate-y-1 hover:border-violet-400/30 hover:bg-white/[0.06] sm:p-6"
               >
-                <div className="mb-4 h-10 w-10 rounded-xl border border-violet-400/20 bg-violet-400/10" />
+                <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border border-violet-400/20 bg-violet-400/10 text-violet-300 shadow-lg shadow-violet-950/20">
+                  {feature.icon === "document" && (
+                    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M7 3.75h7l3 3V20.25H7z" />
+                      <path d="M14 3.75v3h3" />
+                      <path d="M9.5 11h5M9.5 14h5M9.5 17h3.5" />
+                    </svg>
+                  )}
+                  {feature.icon === "exam" && (
+                    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <rect x="4" y="4" width="16" height="16" rx="3" />
+                      <path d="M8 9h8M8 13h5M8 17h3" />
+                      <path d="m15 16 1.2 1.2L19 14.4" />
+                    </svg>
+                  )}
+                  {feature.icon === "chart" && (
+                    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M5 19V9M10 19V5M15 19v-7M20 19V8" />
+                      <path d="M4 19.25h17" />
+                    </svg>
+                  )}
+                </div>
                 <h3 className="text-lg font-bold">{feature.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-400">
                   {feature.description}
