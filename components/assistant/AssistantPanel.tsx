@@ -82,8 +82,8 @@ export default function AssistantPanel({
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "pt-BR";
-    utterance.rate = 0.98;
-    utterance.pitch = 1.03;
+    utterance.rate = 1.1;
+    utterance.pitch = 1.06;
     const femaleVoice = pickPreferredFemalePtBrVoice(window.speechSynthesis.getVoices());
     if (femaleVoice) utterance.voice = femaleVoice;
     window.speechSynthesis.speak(utterance);
