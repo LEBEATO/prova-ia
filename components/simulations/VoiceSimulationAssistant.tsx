@@ -30,10 +30,7 @@ function normalizeCommand(value: string) {
 
 export default function VoiceSimulationAssistant({ questions }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [open, setOpen] = useState(false);
   const [listening, setListening] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [autoListen, setAutoListen] = useState(true);
   const [rate, setRate] = useState(1.12);
   const [lastHeard, setLastHeard] = useState("");
   const [recognitionSupported, setRecognitionSupported] = useState<boolean | null>(null);
@@ -51,7 +48,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     setRecognitionSupported(supported);
 
     if (!supported) {
-      setAutoListen(false);
+      setRecognitionSupported(false);
     }
   }, []);
 
@@ -67,11 +64,6 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
 
   function speak(text: string, listenAfter = false) {
     if (typeof window === "undefined") return;
-
-    if (!voiceEnabled) {
-      setVoiceStatus("A voz está desligada.");
-      return;
-    }
 
     if (!("speechSynthesis" in window)) {
       setVoiceStatus("Este navegador não oferece leitura em voz alta.");
@@ -97,7 +89,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
         setVoiceStatus("Não consegui reproduzir a voz neste aparelho.");
       utterance.onend = () => {
         setVoiceStatus("Leitura concluída.");
-        if (listenAfter && autoListen && recognitionSupported !== false) {
+        if (listenAfter && recognitionSupported !== false) {
           window.setTimeout(() => startListening(), 300);
         }
       };
@@ -307,7 +299,6 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
 
     if (!SpeechRecognitionConstructor) {
       setRecognitionSupported(false);
-      setAutoListen(false);
       setVoiceStatus(
         "Resposta por voz não disponível neste navegador. A leitura da questão continua funcionando."
       );
@@ -349,122 +340,44 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
 
   if (!current) return null;
 
-  if (!open) {
-    return (
-      <section className="mt-6 rounded-2xl border border-violet-400/20 bg-violet-500/5 p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300">
-              Assistente IA
-            </p>
-            <p className="mt-1 text-sm text-slate-400">
-              Use voz para ouvir e responder às questões.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="min-h-11 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold hover:bg-violet-500"
-          >
-            🎙 Abrir IA por voz
-          </button>
-        </div>
-      </section>
-    );
+  function startAiFlow() {
+    speak(speechText, true);
   }
 
   return (
     <section className="mt-6 rounded-2xl border border-violet-400/20 bg-violet-500/5 p-4 sm:p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300">
-            Simulado por voz
+            Simulado com IA
           </p>
           <h3 className="mt-1 text-lg font-bold">
             Questão {current.position} de {questions.length}
           </h3>
           <p className="mt-1 text-sm text-slate-400">
-            Diga “letra B”, “repete”, “próxima questão”, “anterior” ou “mais devagar”.
-          </p>
-          <p className="mt-1 text-xs text-emerald-300/80">
-            {recognitionSupported === false
-              ? "Neste celular, a leitura por voz funciona, mas o reconhecimento de fala do navegador não está disponível."
-              : autoListen
-                ? "Escuta automática ativa: depois da leitura, o microfone abre sozinho."
-                : "Escuta manual: use o botão Responder por voz."}
-          </p>
-          <p className="mt-2 text-xs font-medium text-violet-200">
-            {voiceStatus}
+            {listening
+              ? "Estou ouvindo sua resposta..."
+              : voiceStatus}
           </p>
           {lastHeard && (
             <p className="mt-1 text-xs text-slate-500">
-              Último comando: “{lastHeard}”
+              Você disse: “{lastHeard}”
             </p>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-            }}
-            className="relative z-10 touch-manipulation rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
-          >
-            Fechar IA
-          </button>
-          <button
-            type="button"
-            onClick={() => speak(speechText, true)}
-            className="relative z-10 touch-manipulation rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
-          >
-            🔊 Ler questão
-          </button>
-
-          <button
-            type="button"
-            onClick={startListening}
-            disabled={recognitionSupported === false}
-            className={`relative z-10 touch-manipulation rounded-xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-              listening
-                ? "bg-red-500/20 text-red-300"
-                : "bg-violet-600 text-white hover:bg-violet-500"
-            }`}
-          >
-            {recognitionSupported === false
-              ? "🎙 Voz indisponível"
-              : listening
-                ? "● Ouvindo..."
-                : "🎙 Responder por voz"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setAutoListen((value) => !value)}
-            disabled={recognitionSupported === false}
-            className="relative z-10 touch-manipulation rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {recognitionSupported === false
-              ? "🎧 Escuta indisponível"
-              : autoListen
-                ? "🎧 Escuta automática"
-                : "🎧 Escuta manual"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              const next = !voiceEnabled;
-              setVoiceEnabled(next);
-              if (!next && "speechSynthesis" in window) window.speechSynthesis.cancel();
-            }}
-            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
-          >
-            {voiceEnabled ? "Voz ligada" : "Voz desligada"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={listening ? undefined : startAiFlow}
+          disabled={listening}
+          className={`min-h-11 shrink-0 rounded-xl px-5 py-3 text-sm font-semibold transition disabled:cursor-default ${
+            listening
+              ? "bg-red-500/20 text-red-300"
+              : "bg-violet-600 text-white hover:bg-violet-500"
+          }`}
+        >
+          {listening ? "● Ouvindo..." : "✨ IA"}
+        </button>
       </div>
     </section>
   );
