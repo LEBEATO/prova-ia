@@ -33,7 +33,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
   const [listening, setListening] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [autoListen, setAutoListen] = useState(true);
-  const [rate, setRate] = useState(0.95);
+  const [rate, setRate] = useState(1.12);
   const [lastHeard, setLastHeard] = useState("");
   const [recognitionSupported, setRecognitionSupported] = useState<boolean | null>(null);
   const [voiceStatus, setVoiceStatus] = useState("Pronto para usar a voz.");
@@ -85,7 +85,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "pt-BR";
       utterance.rate = rate;
-      utterance.pitch = 1;
+      utterance.pitch = 1.06;
 
       const voices = synth.getVoices();
       const femaleVoice = pickPreferredFemalePtBrVoice(voices);
