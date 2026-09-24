@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type VoiceOption = {
   key: string;
@@ -34,8 +34,23 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
   const [autoListen, setAutoListen] = useState(true);
   const [rate, setRate] = useState(0.95);
   const [lastHeard, setLastHeard] = useState("");
+  const [recognitionSupported, setRecognitionSupported] = useState<boolean | null>(null);
 
   const current = questions[currentIndex] ?? null;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const supported =
+      "SpeechRecognition" in window ||
+      "webkitSpeechRecognition" in window;
+
+    setRecognitionSupported(supported);
+
+    if (!supported) {
+      setAutoListen(false);
+    }
+  }, []);
 
   const speechText = useMemo(() => {
     if (!current) return "";
@@ -216,6 +231,28 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
 
     const SpeechRecognitionConstructor =
       (window as unknown as {
+        SpeechRecognition?: new () => {
+          lang: string;
+          interimResults: boolean;
+          continuous: boolean;
+          onstart: (() => void) | null;
+          onend: (() => void) | null;
+          onerror: (() => void) | null;
+          onresult: ((event: { results?: { 0?: { 0?: { transcript?: string } } } }) => void) | null;
+          start: () => void;
+        };
+        webkitSpeechRecognition?: new () => {
+          lang: string;
+          interimResults: boolean;
+          continuous: boolean;
+          onstart: (() => void) | null;
+          onend: (() => void) | null;
+          onerror: (() => void) | null;
+          onresult: ((event: { results?: { 0?: { 0?: { transcript?: string } } } }) => void) | null;
+          start: () => void;
+        };
+      }).SpeechRecognition ??
+      (window as unknown as {
         webkitSpeechRecognition?: new () => {
           lang: string;
           interimResults: boolean;
@@ -229,8 +266,10 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
       }).webkitSpeechRecognition;
 
     if (!SpeechRecognitionConstructor) {
+      setRecognitionSupported(false);
+      setAutoListen(false);
       speak(
-        "Seu navegador não disponibilizou reconhecimento de voz. Você ainda pode usar a leitura em voz alta."
+        "Neste navegador, a resposta por voz não está disponível. A leitura em voz alta continua funcionando, e você pode marcar a alternativa tocando na tela."
       );
       return;
     }
@@ -267,9 +306,11 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
             Diga “letra B”, “repete”, “próxima questão”, “anterior” ou “mais devagar”.
           </p>
           <p className="mt-1 text-xs text-emerald-300/80">
-            {autoListen
-              ? "Escuta automática ativa: depois da leitura, o microfone abre sozinho."
-              : "Escuta manual: use o botão Responder por voz."}
+            {recognitionSupported === false
+              ? "Neste celular, a leitura por voz funciona, mas o reconhecimento de fala do navegador não está disponível."
+              : autoListen
+                ? "Escuta automática ativa: depois da leitura, o microfone abre sozinho."
+                : "Escuta manual: use o botão Responder por voz."}
           </p>
           {lastHeard && (
             <p className="mt-2 text-xs text-slate-500">
@@ -290,21 +331,31 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
           <button
             type="button"
             onClick={startListening}
-            className={`rounded-xl px-4 py-3 text-sm font-semibold transition ${
+            disabled={recognitionSupported === false}
+            className={`rounded-xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
               listening
                 ? "bg-red-500/20 text-red-300"
                 : "bg-violet-600 text-white hover:bg-violet-500"
             }`}
           >
-            {listening ? "● Ouvindo..." : "🎙 Responder por voz"}
+            {recognitionSupported === false
+              ? "🎙 Voz indisponível"
+              : listening
+                ? "● Ouvindo..."
+                : "🎙 Responder por voz"}
           </button>
 
           <button
             type="button"
             onClick={() => setAutoListen((value) => !value)}
-            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
+            disabled={recognitionSupported === false}
+            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {autoListen ? "🎧 Escuta automática" : "🎧 Escuta manual"}
+            {recognitionSupported === false
+              ? "🎧 Escuta indisponível"
+              : autoListen
+                ? "🎧 Escuta automática"
+                : "🎧 Escuta manual"}
           </button>
 
           <button
