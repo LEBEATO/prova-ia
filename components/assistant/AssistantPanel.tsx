@@ -49,6 +49,7 @@ export default function AssistantPanel({
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [memoryLoaded, setMemoryLoaded] = useState(false);
   const [awaitingCount, setAwaitingCount] = useState(false);
   const [awaitingNotice, setAwaitingNotice] = useState(false);
   const [selectedNoticeId, setSelectedNoticeId] = useState<string | null>(null);
@@ -91,6 +92,21 @@ export default function AssistantPanel({
   }
 
   useEffect(() => {
+    const storageKey = "provaia-assistant-session";
+    try {
+      const saved = window.sessionStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as { messages?: Message[] };
+        if (Array.isArray(parsed.messages) && parsed.messages.length) {
+          setMessages(parsed.messages);
+          setMemoryLoaded(true);
+          return;
+        }
+      }
+    } catch {
+      // Se a memória local falhar, seguimos com uma nova conversa.
+    }
+
     let greeting = `Olá, ${name}. Que bom ter você por aqui. `;
 
     if (inProgress) {
@@ -106,12 +122,29 @@ export default function AssistantPanel({
     }
 
     setMessages([{ role: "assistant", text: greeting }]);
+    setMemoryLoaded(true);
 
     const timer = window.setTimeout(() => speak(greeting), 450);
     return () => window.clearTimeout(timer);
     // A saudação deve acontecer apenas na entrada do painel.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!memoryLoaded || typeof window === "undefined") return;
+
+    try {
+      window.sessionStorage.setItem(
+        "provaia-assistant-session",
+        JSON.stringify({
+          messages: messages.slice(-30),
+          updatedAt: new Date().toISOString(),
+        })
+      );
+    } catch {
+      // Memória de sessão é um aprimoramento; a conversa continua sem ela.
+    }
+  }, [messages, memoryLoaded]);
 
   function openAfterMessage(text: string, href: string) {
     assistantSay(text);
@@ -406,6 +439,22 @@ export default function AssistantPanel({
             </p>
           </div>
 
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  window.sessionStorage.removeItem("provaia-assistant-session");
+                } catch {}
+                setMessages([]);
+                setMemoryLoaded(false);
+                window.location.reload();
+              }}
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-slate-400 hover:bg-white/10"
+            >
+              Nova conversa
+            </button>
+
           <button
             type="button"
             onClick={() => {
@@ -417,6 +466,7 @@ export default function AssistantPanel({
           >
             {voiceEnabled ? "🔊 Voz ligada" : "🔇 Voz desligada"}
           </button>
+          </div>
         </div>
       </div>
 
