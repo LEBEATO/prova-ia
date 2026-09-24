@@ -13,7 +13,6 @@ export default async function DashboardPage() {
   }
 
   const userId = data.claims.sub;
-  const email = typeof data.claims.email === "string" ? data.claims.email : "";
 
   const [{ data: profile }, { data: notices }, { data: inProgressRows }, { data: latestCompleted }, { data: weakestRows }] = await Promise.all([
     supabase
@@ -129,7 +128,7 @@ export default async function DashboardPage() {
 
       <section className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
         <AssistantPanel
-          userName={profile?.full_name || email || "Professor"}
+          userName={profile?.full_name || "Professor"}
           notices={assistantNotices}
           inProgress={inProgress}
           latestScore={
