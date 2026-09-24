@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createSimulation } from "@/app/simulados/actions";
 import { pickPreferredFemalePtBrVoice } from "@/lib/voice/female-voice";
+import { SiProbot } from "react-icons/si";
 
 type NoticeContext = {
   id: string;
@@ -349,7 +350,14 @@ export default function AssistantPanel({
               : "bg-violet-600 text-white hover:bg-violet-500"
           }`}
         >
-          {listening ? "● Ouvindo..." : "✨ IA"}
+          {listening ? (
+            "● Ouvindo..."
+          ) : (
+            <span className="inline-flex items-center gap-2">
+              <SiProbot className="h-5 w-5" aria-hidden="true" />
+              IA
+            </span>
+          )}
         </button>
       </div>
 
