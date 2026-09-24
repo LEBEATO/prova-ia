@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { pickPreferredFemalePtBrVoice } from "@/lib/voice/female-voice";
+import { SiProbot } from "react-icons/si";
 
 type VoiceOption = {
   key: string;
@@ -497,7 +498,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
             : "bg-violet-600 text-white hover:bg-violet-500"
         }`}
       >
-        {listening ? "●" : "✦"}
+        {listening ? "●" : <SiProbot className="h-6 w-6" aria-hidden="true" />}
       </button>
     </>
   );
