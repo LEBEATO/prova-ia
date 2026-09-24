@@ -31,6 +31,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [listening, setListening] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [autoListen, setAutoListen] = useState(true);
   const [rate, setRate] = useState(0.95);
   const [lastHeard, setLastHeard] = useState("");
 
@@ -46,8 +47,11 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     return `Questão ${current.position} de ${questions.length}. ${current.subject}. ${current.statement}. ${optionsText}. Qual alternativa você escolhe?`;
   }, [current, questions.length]);
 
-  function speak(text: string) {
+  function speak(text: string, listenAfter = false) {
     if (!voiceEnabled || typeof window === "undefined" || !("speechSynthesis" in window)) {
+      if (listenAfter && autoListen) {
+        window.setTimeout(() => startListening(), 150);
+      }
       return;
     }
 
@@ -56,6 +60,11 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     utterance.lang = "pt-BR";
     utterance.rate = rate;
     utterance.pitch = 1;
+    utterance.onend = () => {
+      if (listenAfter && autoListen) {
+        window.setTimeout(() => startListening(), 250);
+      }
+    };
     window.speechSynthesis.speak(utterance);
   }
 
@@ -91,8 +100,25 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     window.setTimeout(() => {
       if (currentIndex < questions.length - 1) {
         const nextIndex = currentIndex + 1;
+        const next = questions[nextIndex];
         setCurrentIndex(nextIndex);
         scrollToQuestion(nextIndex);
+
+        window.setTimeout(() => {
+          if (!next) return;
+          const optionsText = next.options
+            .map((option) => `Alternativa ${option.key}. ${option.text}`)
+            .join(". ");
+
+          speak(
+            `Questão ${next.position} de ${questions.length}. ${next.subject}. ${next.statement}. ${optionsText}. Qual alternativa você escolhe?`,
+            true
+          );
+        }, 500);
+      } else {
+        speak(
+          "Alternativa registrada. Você chegou à última questão. Quando quiser, pode finalizar e corrigir o simulado."
+        );
       }
     }, 700);
   }
@@ -116,7 +142,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
       command.includes("le novamente") ||
       command.includes("ler novamente")
     ) {
-      speak(speechText);
+      speak(speechText, true);
       return;
     }
 
@@ -136,7 +162,8 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
             .map((option) => `Alternativa ${option.key}. ${option.text}`)
             .join(". ");
           speak(
-            `Questão ${next.position} de ${questions.length}. ${next.subject}. ${next.statement}. ${optionsText}. Qual alternativa você escolhe?`
+            `Questão ${next.position} de ${questions.length}. ${next.subject}. ${next.statement}. ${optionsText}. Qual alternativa você escolhe?`,
+            true
           );
         }, 500);
       } else {
@@ -175,7 +202,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     }
 
     if (command.includes("ler questao") || command.includes("le a questao")) {
-      speak(speechText);
+      speak(speechText, true);
       return;
     }
 
@@ -239,6 +266,11 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
           <p className="mt-1 text-sm text-slate-400">
             Diga “letra B”, “repete”, “próxima questão”, “anterior” ou “mais devagar”.
           </p>
+          <p className="mt-1 text-xs text-emerald-300/80">
+            {autoListen
+              ? "Escuta automática ativa: depois da leitura, o microfone abre sozinho."
+              : "Escuta manual: use o botão Responder por voz."}
+          </p>
           {lastHeard && (
             <p className="mt-2 text-xs text-slate-500">
               Ouvi: “{lastHeard}”
@@ -249,7 +281,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => speak(speechText)}
+            onClick={() => speak(speechText, true)}
             className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
           >
             🔊 Ler questão
@@ -265,6 +297,14 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
             }`}
           >
             {listening ? "● Ouvindo..." : "🎙 Responder por voz"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAutoListen((value) => !value)}
+            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
+          >
+            {autoListen ? "🎧 Escuta automática" : "🎧 Escuta manual"}
           </button>
 
           <button
