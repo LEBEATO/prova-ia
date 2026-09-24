@@ -351,12 +351,9 @@ export default function AssistantPanel({
           }`}
         >
           {listening ? (
-            "● Ouvindo..."
+            <span className="text-sm">●</span>
           ) : (
-            <span className="inline-flex items-center gap-2">
-              <SiProbot className="h-5 w-5" aria-hidden="true" />
-              IA
-            </span>
+            <SiProbot className="h-5 w-5" aria-hidden="true" />
           )}
         </button>
       </div>
