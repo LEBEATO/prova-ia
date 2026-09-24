@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { pickPreferredFemalePtBrVoice } from "@/lib/voice/female-voice";
 
 type VoiceOption = {
@@ -20,12 +20,59 @@ type Props = {
   questions: VoiceQuestion[];
 };
 
+type RecognitionEventLike = {
+  results?: {
+    0?: {
+      length?: number;
+      [key: number]: { transcript?: string; confidence?: number } | undefined;
+    };
+  };
+};
+
 function normalizeCommand(value: string) {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    .replace(/[.,!?;:]/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
+}
+
+function detectAlternative(raw: string) {
+  const command = normalizeCommand(raw);
+
+  const directLetter = command.match(
+    /(?:alternativa|letra|opcao|resposta|marco|escolho|vou de|acho que e|acho que seja)\s+(a|b|c|d|e)\b/
+  )?.[1];
+
+  if (directLetter) return directLetter.toUpperCase();
+
+  const spokenLetter = command.match(
+    /(?:alternativa|letra|opcao|resposta|marco|escolho|vou de|acho que e|acho que seja)\s+(a|be|ce|de|e)\b/
+  )?.[1];
+
+  const spokenMap: Record<string, string> = {
+    a: "A",
+    be: "B",
+    ce: "C",
+    de: "D",
+    e: "E",
+  };
+
+  if (spokenLetter && spokenMap[spokenLetter]) {
+    return spokenMap[spokenLetter];
+  }
+
+  // Reconhecimento de voz costuma converter "D" para "de", "B" para "be" etc.
+  const short = command.split(" ");
+  if (short.length <= 4) {
+    const last = short[short.length - 1];
+    if (spokenMap[last]) return spokenMap[last];
+    if (/^[a-e]$/.test(last)) return last.toUpperCase();
+  }
+
+  return null;
 }
 
 export default function VoiceSimulationAssistant({ questions }: Props) {
@@ -34,7 +81,9 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
   const [rate, setRate] = useState(1.12);
   const [lastHeard, setLastHeard] = useState("");
   const [recognitionSupported, setRecognitionSupported] = useState<boolean | null>(null);
-  const [voiceStatus, setVoiceStatus] = useState("Pronto para usar a voz.");
+  const [voiceStatus, setVoiceStatus] = useState("Toque na IA para começar.");
+  const [active, setActive] = useState(false);
+  const retryRef = useRef(0);
 
   const current = questions[currentIndex] ?? null;
 
@@ -46,10 +95,6 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
       "webkitSpeechRecognition" in window;
 
     setRecognitionSupported(supported);
-
-    if (!supported) {
-      setRecognitionSupported(false);
-    }
   }, []);
 
   const speechText = useMemo(() => {
@@ -80,17 +125,18 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
       utterance.rate = rate;
       utterance.pitch = 1.06;
 
-      const voices = synth.getVoices();
-      const femaleVoice = pickPreferredFemalePtBrVoice(voices);
+      const femaleVoice = pickPreferredFemalePtBrVoice(synth.getVoices());
       if (femaleVoice) utterance.voice = femaleVoice;
 
-      utterance.onstart = () => setVoiceStatus("Lendo a questão...");
+      utterance.onstart = () => setVoiceStatus("IA falando...");
       utterance.onerror = () =>
         setVoiceStatus("Não consegui reproduzir a voz neste aparelho.");
       utterance.onend = () => {
-        setVoiceStatus("Leitura concluída.");
         if (listenAfter && recognitionSupported !== false) {
-          window.setTimeout(() => startListening(), 300);
+          setVoiceStatus("Agora pode responder.");
+          window.setTimeout(() => startListening(), 250);
+        } else {
+          setVoiceStatus("Pronta.");
         }
       };
 
@@ -108,63 +154,96 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     element?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
+  function readQuestion(index = currentIndex) {
+    const question = questions[index];
+    if (!question) return;
+
+    const optionsText = question.options
+      .map((option) => `Alternativa ${option.key}. ${option.text}`)
+      .join(". ");
+
+    speak(
+      `Questão ${question.position} de ${questions.length}. ${question.subject}. ${question.statement}. ${optionsText}. Qual alternativa você escolhe?`,
+      true
+    );
+  }
+
   function selectAlternative(letter: string) {
     if (!current) return;
 
     const normalizedLetter = letter.toUpperCase();
-    const optionExists = current.options.some((option) => option.key.toUpperCase() === normalizedLetter);
+    const optionExists = current.options.some(
+      (option) => option.key.toUpperCase() === normalizedLetter
+    );
 
     if (!optionExists) {
-      speak(`A alternativa ${normalizedLetter} não existe nesta questão.`);
+      speak(
+        `A alternativa ${normalizedLetter} não existe nesta questão. Diga outra alternativa.`,
+        true
+      );
       return;
     }
 
     const selector = `input[name="answer_${current.linkId}"][value="${normalizedLetter}"]`;
     const radio = document.querySelector<HTMLInputElement>(selector);
 
-    if (!radio) return;
+    if (!radio) {
+      speak("Não consegui registrar essa resposta. Vamos tentar novamente.", true);
+      return;
+    }
 
     radio.checked = true;
     radio.dispatchEvent(new Event("change", { bubbles: true }));
+    retryRef.current = 0;
 
-    speak(`Alternativa ${normalizedLetter} registrada.`);
+    if (currentIndex < questions.length - 1) {
+      const nextIndex = currentIndex + 1;
 
-    window.setTimeout(() => {
-      if (currentIndex < questions.length - 1) {
-        const nextIndex = currentIndex + 1;
-        const next = questions[nextIndex];
+      speak(`Entendi. Alternativa ${normalizedLetter} registrada. Vamos para a próxima.`);
+
+      window.setTimeout(() => {
         setCurrentIndex(nextIndex);
         scrollToQuestion(nextIndex);
 
         window.setTimeout(() => {
-          if (!next) return;
-          const optionsText = next.options
-            .map((option) => `Alternativa ${option.key}. ${option.text}`)
-            .join(". ");
+          readQuestion(nextIndex);
+        }, 450);
+      }, 650);
+    } else {
+      speak(
+        `Entendi. Alternativa ${normalizedLetter} registrada. Você terminou as questões. Agora pode finalizar o simulado para ver o resultado.`
+      );
+      setVoiceStatus("Simulado respondido por voz.");
+    }
+  }
 
-          speak(
-            `Questão ${next.position} de ${questions.length}. ${next.subject}. ${next.statement}. ${optionsText}. Qual alternativa você escolhe?`,
-            true
-          );
-        }, 500);
-      } else {
-        speak(
-          "Alternativa registrada. Você chegou à última questão. Quando quiser, pode finalizar e corrigir o simulado."
-        );
-      }
-    }, 700);
+  function reprompt() {
+    retryRef.current += 1;
+
+    if (retryRef.current === 1) {
+      speak(
+        "Não entendi sua resposta. Pode repetir dizendo, por exemplo, alternativa D.",
+        true
+      );
+      return;
+    }
+
+    retryRef.current = 0;
+    speak(
+      "Ainda não consegui entender. Vou repetir a questão para você.",
+      false
+    );
+
+    window.setTimeout(() => readQuestion(), 900);
   }
 
   function handleCommand(raw: string) {
     const command = normalizeCommand(raw);
     setLastHeard(raw);
 
-    const alternativeMatch = command.match(
-      /(?:alternativa|letra|resposta)?\s*([a-e])\b/
-    );
-
-    if (alternativeMatch?.[1]) {
-      selectAlternative(alternativeMatch[1]);
+    const alternative = detectAlternative(raw);
+    if (alternative) {
+      selectAlternative(alternative);
       return;
     }
 
@@ -172,9 +251,11 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
       command.includes("repete") ||
       command.includes("repetir") ||
       command.includes("le novamente") ||
-      command.includes("ler novamente")
+      command.includes("ler novamente") ||
+      command.includes("repete a questao")
     ) {
-      speak(speechText, true);
+      retryRef.current = 0;
+      readQuestion();
       return;
     }
 
@@ -187,66 +268,73 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
         const nextIndex = currentIndex + 1;
         setCurrentIndex(nextIndex);
         scrollToQuestion(nextIndex);
-        window.setTimeout(() => {
-          const next = questions[nextIndex];
-          if (!next) return;
-          const optionsText = next.options
-            .map((option) => `Alternativa ${option.key}. ${option.text}`)
-            .join(". ");
-          speak(
-            `Questão ${next.position} de ${questions.length}. ${next.subject}. ${next.statement}. ${optionsText}. Qual alternativa você escolhe?`,
-            true
-          );
-        }, 500);
+        window.setTimeout(() => readQuestion(nextIndex), 450);
       } else {
-        speak("Você já está na última questão.");
+        speak("Você já está na última questão.", true);
       }
       return;
     }
 
     if (
       command.includes("anterior") ||
-      command.includes("voltar uma") ||
+      command.includes("voltar") ||
       command.includes("questao anterior")
     ) {
       if (currentIndex > 0) {
         const previousIndex = currentIndex - 1;
         setCurrentIndex(previousIndex);
         scrollToQuestion(previousIndex);
+        window.setTimeout(() => readQuestion(previousIndex), 450);
       } else {
-        speak("Você já está na primeira questão.");
+        speak("Você já está na primeira questão.", true);
       }
       return;
     }
 
-    if (command.includes("mais devagar") || command.includes("fala devagar")) {
-      const nextRate = Math.max(0.7, rate - 0.1);
+    if (
+      command.includes("mais devagar") ||
+      command.includes("fala devagar")
+    ) {
+      const nextRate = Math.max(0.8, rate - 0.1);
       setRate(nextRate);
-      window.setTimeout(() => speak("Certo. Vou falar mais devagar."), 50);
+      speak("Certo. Vou falar mais devagar. Vou repetir a questão.");
+      window.setTimeout(() => readQuestion(), 800);
       return;
     }
 
-    if (command.includes("mais rapido") || command.includes("fala rapido")) {
-      const nextRate = Math.min(1.2, rate + 0.1);
+    if (
+      command.includes("mais rapido") ||
+      command.includes("fala rapido")
+    ) {
+      const nextRate = Math.min(1.3, rate + 0.1);
       setRate(nextRate);
-      window.setTimeout(() => speak("Certo. Vou falar um pouco mais rápido."), 50);
+      speak("Certo. Vou falar um pouco mais rápido. Vou repetir a questão.");
+      window.setTimeout(() => readQuestion(), 800);
       return;
     }
 
-    if (command.includes("ler questao") || command.includes("le a questao")) {
-      speak(speechText, true);
-      return;
-    }
-
-    speak(
-      "Não entendi esse comando. Você pode dizer, por exemplo, letra B, repetir questão, próxima questão ou mais devagar."
-    );
+    reprompt();
   }
 
   async function startListening() {
     if (typeof window === "undefined") return;
 
-    setVoiceStatus("Preparando o microfone...");
+    const SpeechRecognitionConstructor =
+      (window as unknown as {
+        SpeechRecognition?: new () => any;
+        webkitSpeechRecognition?: new () => any;
+      }).SpeechRecognition ??
+      (window as unknown as {
+        webkitSpeechRecognition?: new () => any;
+      }).webkitSpeechRecognition;
+
+    if (!SpeechRecognitionConstructor) {
+      setRecognitionSupported(false);
+      setVoiceStatus(
+        "Resposta por voz não está disponível neste navegador."
+      );
+      return;
+    }
 
     try {
       if (navigator.mediaDevices?.getUserMedia) {
@@ -254,54 +342,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
         stream.getTracks().forEach((track) => track.stop());
       }
     } catch {
-      setVoiceStatus(
-        "Permissão do microfone bloqueada. Libere o microfone nas configurações do navegador."
-      );
-      setListening(false);
-      return;
-    }
-
-    const SpeechRecognitionConstructor =
-      (window as unknown as {
-        SpeechRecognition?: new () => {
-          lang: string;
-          interimResults: boolean;
-          continuous: boolean;
-          onstart: (() => void) | null;
-          onend: (() => void) | null;
-          onerror: (() => void) | null;
-          onresult: ((event: { results?: { 0?: { 0?: { transcript?: string } } } }) => void) | null;
-          start: () => void;
-        };
-        webkitSpeechRecognition?: new () => {
-          lang: string;
-          interimResults: boolean;
-          continuous: boolean;
-          onstart: (() => void) | null;
-          onend: (() => void) | null;
-          onerror: (() => void) | null;
-          onresult: ((event: { results?: { 0?: { 0?: { transcript?: string } } } }) => void) | null;
-          start: () => void;
-        };
-      }).SpeechRecognition ??
-      (window as unknown as {
-        webkitSpeechRecognition?: new () => {
-          lang: string;
-          interimResults: boolean;
-          continuous: boolean;
-          onstart: (() => void) | null;
-          onend: (() => void) | null;
-          onerror: (() => void) | null;
-          onresult: ((event: { results?: { 0?: { 0?: { transcript?: string } } } }) => void) | null;
-          start: () => void;
-        };
-      }).webkitSpeechRecognition;
-
-    if (!SpeechRecognitionConstructor) {
-      setRecognitionSupported(false);
-      setVoiceStatus(
-        "Resposta por voz não disponível neste navegador. A leitura da questão continua funcionando."
-      );
+      setVoiceStatus("Libere o microfone nas configurações do navegador.");
       return;
     }
 
@@ -309,24 +350,59 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     recognition.lang = "pt-BR";
     recognition.interimResults = false;
     recognition.continuous = false;
+    recognition.maxAlternatives = 5;
+
+    let receivedResult = false;
 
     recognition.onstart = () => {
       setListening(true);
       setVoiceStatus("Ouvindo sua resposta...");
     };
+
     recognition.onend = () => {
       setListening(false);
-      setVoiceStatus("Microfone encerrado.");
+
+      if (!receivedResult && active) {
+        setVoiceStatus("Não ouvi uma resposta.");
+      }
     };
-    recognition.onerror = () => {
+
+    recognition.onerror = (event: { error?: string }) => {
       setListening(false);
-      setVoiceStatus("Não consegui ouvir. Tente novamente.");
+
+      if (event?.error === "no-speech") {
+        reprompt();
+        return;
+      }
+
+      setVoiceStatus("Não consegui ouvir. Toque na IA para tentar novamente.");
     };
-    recognition.onresult = (event) => {
-      const transcript = event.results?.[0]?.[0]?.transcript ?? "";
+
+    recognition.onresult = (event: RecognitionEventLike) => {
+      receivedResult = true;
+
+      const result = event.results?.[0];
+      const candidates: string[] = [];
+
+      if (result) {
+        const length = Number(result.length ?? 0);
+        for (let index = 0; index < length; index += 1) {
+          const transcript = result[index]?.transcript?.trim();
+          if (transcript) candidates.push(transcript);
+        }
+      }
+
+      const recognized = candidates.find((candidate) =>
+        detectAlternative(candidate)
+      );
+
+      const transcript = recognized ?? candidates[0] ?? "";
+
       if (transcript) {
-        setVoiceStatus(`Ouvi: "${transcript}"`);
+        setLastHeard(transcript);
         handleCommand(transcript);
+      } else {
+        reprompt();
       }
     };
 
@@ -341,44 +417,44 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
   if (!current) return null;
 
   function startAiFlow() {
-    speak(speechText, true);
+    setActive(true);
+    retryRef.current = 0;
+    scrollToQuestion(currentIndex);
+    readQuestion();
   }
 
   return (
-    <section className="mt-6 rounded-2xl border border-violet-400/20 bg-violet-500/5 p-4 sm:p-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300">
-            Simulado com IA
-          </p>
-          <h3 className="mt-1 text-lg font-bold">
+    <>
+      {active && (
+        <div className="fixed bottom-20 right-4 z-40 max-w-[min(78vw,280px)] rounded-2xl border border-violet-400/20 bg-slate-950/95 px-3 py-2 text-xs text-slate-300 shadow-2xl backdrop-blur sm:bottom-24 sm:right-6">
+          <p className="font-semibold text-violet-300">
             Questão {current.position} de {questions.length}
-          </h3>
-          <p className="mt-1 text-sm text-slate-400">
-            {listening
-              ? "Estou ouvindo sua resposta..."
-              : voiceStatus}
+          </p>
+          <p className="mt-1">
+            {listening ? "Estou ouvindo..." : voiceStatus}
           </p>
           {lastHeard && (
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 truncate text-slate-500">
               Você disse: “{lastHeard}”
             </p>
           )}
         </div>
+      )}
 
-        <button
-          type="button"
-          onClick={listening ? undefined : startAiFlow}
-          disabled={listening}
-          className={`min-h-11 shrink-0 rounded-xl px-5 py-3 text-sm font-semibold transition disabled:cursor-default ${
-            listening
-              ? "bg-red-500/20 text-red-300"
-              : "bg-violet-600 text-white hover:bg-violet-500"
-          }`}
-        >
-          {listening ? "● Ouvindo..." : "✨ IA"}
-        </button>
-      </div>
-    </section>
+      <button
+        type="button"
+        onClick={listening ? undefined : startAiFlow}
+        disabled={listening}
+        aria-label="Assistente IA do simulado"
+        title="Assistente IA"
+        className={`fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold shadow-2xl transition sm:bottom-6 sm:right-6 ${
+          listening
+            ? "bg-red-500 text-white"
+            : "bg-violet-600 text-white hover:bg-violet-500"
+        }`}
+      >
+        {listening ? "●" : "✦"}
+      </button>
+    </>
   );
 }
