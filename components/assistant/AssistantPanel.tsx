@@ -50,6 +50,8 @@ export default function AssistantPanel({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [awaitingCount, setAwaitingCount] = useState(false);
+  const [awaitingNotice, setAwaitingNotice] = useState(false);
+  const [selectedNoticeId, setSelectedNoticeId] = useState<string | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [listening, setListening] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -65,6 +67,9 @@ export default function AssistantPanel({
   );
 
   const preferredNotice = analyzedNotices[0] ?? null;
+  const selectedNotice =
+    analyzedNotices.find((notice) => notice.id === selectedNoticeId) ??
+    preferredNotice;
   const name = firstName(userName);
 
   function speak(text: string) {
@@ -113,6 +118,23 @@ export default function AssistantPanel({
     window.setTimeout(() => router.push(href), 800);
   }
 
+  function askQuestionCount(noticeId?: string) {
+    const notice =
+      analyzedNotices.find((item) => item.id === noticeId) ?? selectedNotice;
+
+    if (!notice) return;
+
+    setSelectedNoticeId(notice.id);
+    setAwaitingNotice(false);
+    setAwaitingCount(true);
+
+    const board = notice.board_name ? ` da banca ${notice.board_name}` : "";
+
+    assistantSay(
+      `Perfeito. Vou usar o edital “${notice.title}”${board}. Você quer 10, 20 ou 30 questões? Vou começar no modo adaptativo, usando seu histórico para ajustar a dificuldade.`
+    );
+  }
+
   function beginNewSimulation() {
     if (!preferredNotice) {
       openAfterMessage(
@@ -122,22 +144,31 @@ export default function AssistantPanel({
       return;
     }
 
-    setAwaitingCount(true);
-    const board = preferredNotice.board_name
-      ? ` da banca ${preferredNotice.board_name}`
-      : "";
+    if (analyzedNotices.length > 1) {
+      setAwaitingNotice(true);
+      const choices = analyzedNotices
+        .slice(0, 4)
+        .map(
+          (notice, index) =>
+            `${index + 1}. ${notice.title}${notice.board_name ? ` — ${notice.board_name}` : ""}`
+        )
+        .join(" ");
 
-    assistantSay(
-      `Perfeito. Vou usar o edital “${preferredNotice.title}”${board}. Você quer 10, 20 ou 30 questões? Vou começar no modo adaptativo, usando seu histórico para ajustar a dificuldade.`
-    );
-  }
-
-  function generateSimulation(count: number) {
-    if (!preferredNotice || !formRef.current || !noticeRef.current || !countRef.current || !modeRef.current) {
+      assistantSay(
+        `Você tem mais de um edital analisado. Qual deles quer usar? ${choices}`
+      );
       return;
     }
 
-    noticeRef.current.value = preferredNotice.id;
+    askQuestionCount(preferredNotice.id);
+  }
+
+  function generateSimulation(count: number) {
+    if (!selectedNotice || !formRef.current || !noticeRef.current || !countRef.current || !modeRef.current) {
+      return;
+    }
+
+    noticeRef.current.value = selectedNotice.id;
     countRef.current.value = String(count);
     modeRef.current.value = "adaptive";
     setAwaitingCount(false);
@@ -185,6 +216,40 @@ export default function AssistantPanel({
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase();
 
+    if (awaitingNotice) {
+      const numericChoice = Number(normalized.match(/\b([1-4])\b/)?.[1] ?? 0);
+      const byNumber = numericChoice
+        ? analyzedNotices[numericChoice - 1]
+        : null;
+
+      const byText = analyzedNotices.find((notice) => {
+        const title = notice.title
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase();
+        const board = (notice.board_name ?? "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase();
+
+        return (
+          (title.length > 3 && normalized.includes(title)) ||
+          (board.length > 2 && normalized.includes(board))
+        );
+      });
+
+      const chosen = byNumber ?? byText;
+      if (chosen) {
+        askQuestionCount(chosen.id);
+        return;
+      }
+
+      assistantSay(
+        "Não consegui identificar qual edital você escolheu. Pode dizer o número da opção, o nome do edital ou o nome da banca?"
+      );
+      return;
+    }
+
     if (awaitingCount) {
       const count = normalized.match(/\b(10|20|30)\b/)?.[1];
       if (count) {
@@ -220,6 +285,14 @@ export default function AssistantPanel({
       normalized.includes("criar simulado") ||
       normalized === "simulado"
     ) {
+      const requestedCount = normalized.match(/\b(10|20|30)\b/)?.[1];
+
+      if (requestedCount && analyzedNotices.length === 1) {
+        setSelectedNoticeId(analyzedNotices[0].id);
+        window.setTimeout(() => generateSimulation(Number(requestedCount)), 0);
+        return;
+      }
+
       beginNewSimulation();
       return;
     }
@@ -365,7 +438,7 @@ export default function AssistantPanel({
           </div>
         ))}
 
-        {(isPending || awaitingCount) && (
+        {(isPending || awaitingCount || awaitingNotice) && (
           <p className="text-xs text-violet-300">
             {isPending ? "Preparando seu simulado..." : "Estou aguardando sua escolha."}
           </p>
