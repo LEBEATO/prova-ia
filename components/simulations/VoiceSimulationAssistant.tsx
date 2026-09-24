@@ -39,37 +39,77 @@ function normalizeCommand(value: string) {
     .trim();
 }
 
-function detectAlternative(raw: string) {
+function detectAlternative(raw: string, validLetters: string[]) {
   const command = normalizeCommand(raw);
-
-  const directLetter = command.match(
-    /(?:alternativa|letra|opcao|resposta|marco|escolho|vou de|acho que e|acho que seja)\s+(a|b|c|d|e)\b/
-  )?.[1];
-
-  if (directLetter) return directLetter.toUpperCase();
-
-  const spokenLetter = command.match(
-    /(?:alternativa|letra|opcao|resposta|marco|escolho|vou de|acho que e|acho que seja)\s+(a|be|ce|de|e)\b/
-  )?.[1];
 
   const spokenMap: Record<string, string> = {
     a: "A",
+    ah: "A",
     be: "B",
+    b: "B",
     ce: "C",
+    c: "C",
+    se: "C",
     de: "D",
+    d: "D",
     e: "E",
+    eh: "E",
+    efe: "F",
+    f: "F",
+    ge: "G",
+    g: "G",
+    aga: "H",
+    h: "H",
+    i: "I",
+    jota: "J",
+    j: "J",
+    ca: "K",
+    k: "K",
+    ele: "L",
+    l: "L",
+    eme: "M",
+    m: "M",
+    ene: "N",
+    n: "N",
+    o: "O",
+    pe: "P",
+    p: "P",
+    que: "Q",
+    q: "Q",
+    erre: "R",
+    r: "R",
+    esse: "S",
+    s: "S",
+    te: "T",
+    t: "T",
+    u: "U",
+    ve: "V",
+    v: "V",
+    xis: "X",
+    x: "X",
+    ze: "Z",
+    z: "Z",
   };
 
-  if (spokenLetter && spokenMap[spokenLetter]) {
-    return spokenMap[spokenLetter];
+  const tokens = command.split(" ");
+  const candidates: string[] = [];
+
+  const explicit = command.match(
+    /(?:alternativa|letra|opcao|resposta|marco|escolho|vou de|acho que e|acho que seja|minha resposta e)\s+([a-z]+)\b/
+  )?.[1];
+
+  if (explicit) candidates.push(explicit);
+
+  if (tokens.length <= 6 && tokens.length > 0) {
+    candidates.push(tokens[tokens.length - 1]);
   }
 
-  // Reconhecimento de voz costuma converter "D" para "de", "B" para "be" etc.
-  const short = command.split(" ");
-  if (short.length <= 4) {
-    const last = short[short.length - 1];
-    if (spokenMap[last]) return spokenMap[last];
-    if (/^[a-e]$/.test(last)) return last.toUpperCase();
+  for (const candidate of candidates) {
+    const mapped = spokenMap[candidate] ?? candidate.toUpperCase();
+
+    if (validLetters.includes(mapped)) {
+      return mapped;
+    }
   }
 
   return null;
@@ -178,7 +218,9 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
 
     if (!optionExists) {
       speak(
-        `A alternativa ${normalizedLetter} não existe nesta questão. Diga outra alternativa.`,
+        `Essa questão não tem a alternativa ${normalizedLetter}. As opções disponíveis são ${current.options
+          .map((option) => option.key)
+          .join(", ")}. Diga uma dessas alternativas.`,
         true
       );
       return;
@@ -241,7 +283,8 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     const command = normalizeCommand(raw);
     setLastHeard(raw);
 
-    const alternative = detectAlternative(raw);
+    const validLetters = current?.options.map((option) => option.key.toUpperCase()) ?? [];
+    const alternative = detectAlternative(raw, validLetters);
     if (alternative) {
       selectAlternative(alternative);
       return;
@@ -392,8 +435,9 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
         }
       }
 
+      const validLetters = current?.options.map((option) => option.key.toUpperCase()) ?? [];
       const recognized = candidates.find((candidate) =>
-        detectAlternative(candidate)
+        detectAlternative(candidate, validLetters)
       );
 
       const transcript = recognized ?? candidates[0] ?? "";
