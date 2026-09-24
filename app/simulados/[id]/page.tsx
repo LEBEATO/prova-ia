@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { submitSimulation } from "../actions";
+import ReviewAssistant from "@/components/assistant/ReviewAssistant";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<{ error?: string; completed?: string }>;
@@ -25,6 +26,16 @@ export default async function SimuladoDetalhesPage({
   }
 
   const userId = claimsData.claims.sub;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const userName =
+    profile?.full_name ||
+    (typeof claimsData.claims.email === "string" ? claimsData.claims.email : "Professor");
 
   const { data: simulation } = await supabase
     .from("simulations")
@@ -75,6 +86,38 @@ export default async function SimuladoDetalhesPage({
           .order("accuracy", { ascending: true })
           .limit(12)
       : { data: [] };
+
+  const wrongQuestions =
+    simulation.status === "completed"
+      ? (links ?? [])
+          .map((link) => {
+            const question = link.question_id ? questionMap.get(link.question_id) : null;
+            const answer = answerMap.get(link.id);
+
+            if (!question || answer?.correct) return null;
+
+            return {
+              position: link.position,
+              subject: question.subject || "Não identificado",
+              topic: question.topic || "Geral",
+              subtopic: question.subtopic || "Geral",
+              statement: question.statement,
+              selectedAnswer: answer?.selected_answer ?? null,
+              correctAnswer: question.correct_answer,
+              explanation: question.explanation || "Revise o conceito central cobrado nesta questão.",
+            };
+          })
+          .filter(Boolean) as Array<{
+          position: number;
+          subject: string;
+          topic: string;
+          subtopic: string;
+          statement: string;
+          selectedAnswer: string | null;
+          correctAnswer: string;
+          explanation: string;
+        }>
+      : [];
 
   return (
     <main className="min-h-dvh bg-slate-950 text-white">
@@ -234,6 +277,16 @@ export default async function SimuladoDetalhesPage({
             </div>
           )}
         </form>
+
+        {simulation.status === "completed" && (
+          <ReviewAssistant
+            userName={userName}
+            score={Number(simulation.score ?? 0)}
+            correctAnswers={Number(simulation.correct_answers ?? 0)}
+            wrongAnswers={Number(simulation.wrong_answers ?? 0)}
+            questions={wrongQuestions}
+          />
+        )}
 
         {simulation.status === "completed" && (
           <section className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6">
