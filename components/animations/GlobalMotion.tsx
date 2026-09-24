@@ -54,7 +54,14 @@ export default function GlobalMotion() {
             `${Math.min(index % 5, 4) * 70}ms`
           );
 
-          if (reduceMotion) {
+          const rect = element.getBoundingClientRect();
+          const isInitiallyVisible =
+            rect.bottom >= 0 &&
+            rect.top <= window.innerHeight &&
+            rect.right >= 0 &&
+            rect.left <= window.innerWidth;
+
+          if (reduceMotion || isInitiallyVisible) {
             element.classList.add("motion-visible");
           } else {
             observer.observe(element);
