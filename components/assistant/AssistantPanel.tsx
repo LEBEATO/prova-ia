@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createSimulation } from "@/app/simulados/actions";
+import { pickPreferredFemalePtBrVoice } from "@/lib/voice/female-voice";
 
 type NoticeContext = {
   id: string;
@@ -82,7 +83,9 @@ export default function AssistantPanel({
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "pt-BR";
     utterance.rate = 0.98;
-    utterance.pitch = 1;
+    utterance.pitch = 1.03;
+    const femaleVoice = pickPreferredFemalePtBrVoice(window.speechSynthesis.getVoices());
+    if (femaleVoice) utterance.voice = femaleVoice;
     window.speechSynthesis.speak(utterance);
   }
 
