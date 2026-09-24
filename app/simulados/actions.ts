@@ -74,6 +74,24 @@ export async function createSimulation(formData: FormData) {
   );
   const schedule = difficultySchedule(questionCount, difficulty.profile);
 
+  const duplicateWindow = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const { data: recentSimulation } = await supabase
+    .from("simulations")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("notice_id", noticeId)
+    .eq("question_count", questionCount)
+    .eq("difficulty_mode", difficultyMode)
+    .eq("status", "in_progress")
+    .gte("created_at", duplicateWindow)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (recentSimulation?.id) {
+    redirect(`/simulados/${recentSimulation.id}`);
+  }
+
   const { data: simulation, error: simulationError } = await supabase
     .from("simulations")
     .insert({
