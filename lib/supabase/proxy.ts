@@ -27,7 +27,24 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  await supabase.auth.getClaims();
+  const { error } = await supabase.auth.getClaims();
+
+  if (error) {
+    const authCookies = request.cookies
+      .getAll()
+      .filter(
+        ({ name }) =>
+          name.startsWith("sb-") && name.includes("auth-token")
+      );
+
+    authCookies.forEach(({ name }) => {
+      request.cookies.delete(name);
+      response.cookies.set(name, "", {
+        path: "/",
+        maxAge: 0,
+      });
+    });
+  }
 
   return response;
 }
