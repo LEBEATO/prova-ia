@@ -125,8 +125,13 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
   const [voiceStatus, setVoiceStatus] = useState("Toque na IA para começar.");
   const [active, setActive] = useState(false);
   const retryRef = useRef(0);
+  const currentIndexRef = useRef(0);
 
   const current = questions[currentIndex] ?? null;
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -195,7 +200,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     element?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
-  function readQuestion(index = currentIndex) {
+  function readQuestion(index = currentIndexRef.current) {
     const question = questions[index];
     if (!question) return;
 
@@ -210,16 +215,18 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
   }
 
   function selectAlternative(letter: string) {
-    if (!current) return;
+    const activeIndex = currentIndexRef.current;
+    const activeQuestion = questions[activeIndex];
+    if (!activeQuestion) return;
 
     const normalizedLetter = letter.toUpperCase();
-    const optionExists = current.options.some(
+    const optionExists = activeQuestion.options.some(
       (option) => option.key.toUpperCase() === normalizedLetter
     );
 
     if (!optionExists) {
       speak(
-        `Essa questão não tem a alternativa ${normalizedLetter}. As opções disponíveis são ${current.options
+        `Essa questão não tem a alternativa ${normalizedLetter}. As opções disponíveis são ${activeQuestion.options
           .map((option) => option.key)
           .join(", ")}. Diga uma dessas alternativas.`,
         true
@@ -227,7 +234,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
       return;
     }
 
-    const selector = `input[name="answer_${current.linkId}"][value="${normalizedLetter}"]`;
+    const selector = `input[name="answer_${activeQuestion.linkId}"][value="${normalizedLetter}"]`;
     const radio = document.querySelector<HTMLInputElement>(selector);
 
     if (!radio) {
@@ -239,12 +246,13 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     radio.dispatchEvent(new Event("change", { bubbles: true }));
     retryRef.current = 0;
 
-    if (currentIndex < questions.length - 1) {
-      const nextIndex = currentIndex + 1;
+    if (activeIndex < questions.length - 1) {
+      const nextIndex = activeIndex + 1;
 
       speak(`Entendi. Alternativa ${normalizedLetter} registrada. Vamos para a próxima.`);
 
       window.setTimeout(() => {
+        currentIndexRef.current = nextIndex;
         setCurrentIndex(nextIndex);
         scrollToQuestion(nextIndex);
 
@@ -284,7 +292,8 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     const command = normalizeCommand(raw);
     setLastHeard(raw);
 
-    const validLetters = current?.options.map((option) => option.key.toUpperCase()) ?? [];
+    const activeQuestion = questions[currentIndexRef.current];
+    const validLetters = activeQuestion?.options.map((option) => option.key.toUpperCase()) ?? [];
     const alternative = detectAlternative(raw, validLetters);
     if (alternative) {
       selectAlternative(alternative);
@@ -308,8 +317,10 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
       command.includes("proximo") ||
       command.includes("avancar")
     ) {
-      if (currentIndex < questions.length - 1) {
-        const nextIndex = currentIndex + 1;
+      const activeIndex = currentIndexRef.current;
+      if (activeIndex < questions.length - 1) {
+        const nextIndex = activeIndex + 1;
+        currentIndexRef.current = nextIndex;
         setCurrentIndex(nextIndex);
         scrollToQuestion(nextIndex);
         window.setTimeout(() => readQuestion(nextIndex), 450);
@@ -324,8 +335,10 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
       command.includes("voltar") ||
       command.includes("questao anterior")
     ) {
-      if (currentIndex > 0) {
-        const previousIndex = currentIndex - 1;
+      const activeIndex = currentIndexRef.current;
+      if (activeIndex > 0) {
+        const previousIndex = activeIndex - 1;
+        currentIndexRef.current = previousIndex;
         setCurrentIndex(previousIndex);
         scrollToQuestion(previousIndex);
         window.setTimeout(() => readQuestion(previousIndex), 450);
@@ -436,7 +449,8 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
         }
       }
 
-      const validLetters = current?.options.map((option) => option.key.toUpperCase()) ?? [];
+      const activeQuestion = questions[currentIndexRef.current];
+      const validLetters = activeQuestion?.options.map((option) => option.key.toUpperCase()) ?? [];
       const recognized = candidates.find((candidate) =>
         detectAlternative(candidate, validLetters)
       );
@@ -464,8 +478,9 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
   function startAiFlow() {
     setActive(true);
     retryRef.current = 0;
-    scrollToQuestion(currentIndex);
-    readQuestion();
+    currentIndexRef.current = currentIndex;
+    scrollToQuestion(currentIndexRef.current);
+    readQuestion(currentIndexRef.current);
   }
 
   return (
