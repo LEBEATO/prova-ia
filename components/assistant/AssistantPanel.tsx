@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createSimulation } from "@/app/simulados/actions";
 import { pickPreferredFemalePtBrVoice } from "@/lib/voice/female-voice";
@@ -31,13 +31,18 @@ type AssistantPanelProps = {
   weakest: PerformanceContext;
 };
 
-type Message = {
-  role: "assistant" | "user";
-  text: string;
-};
+type Step = "idle" | "notice" | "count";
 
 function firstName(value: string) {
-  return value.trim().split(/\s+/)[0] || "professor";
+  return value.trim().split(/\s+/)[0] || "Professor";
+}
+
+function normalize(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 export default function AssistantPanel({
@@ -48,15 +53,12 @@ export default function AssistantPanel({
   weakest,
 }: AssistantPanelProps) {
   const router = useRouter();
-  const [messages, setMessages] = useState<Message[]>([]);
   const [open, setOpen] = useState(false);
-  const [input, setInput] = useState("");
-  const [memoryLoaded, setMemoryLoaded] = useState(false);
-  const [awaitingCount, setAwaitingCount] = useState(false);
-  const [awaitingNotice, setAwaitingNotice] = useState(false);
-  const [selectedNoticeId, setSelectedNoticeId] = useState<string | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [listening, setListening] = useState(false);
+  const [status, setStatus] = useState("Pronta para ajudar.");
+  const [step, setStep] = useState<Step>("idle");
+  const [selectedNoticeId, setSelectedNoticeId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -73,131 +75,67 @@ export default function AssistantPanel({
   const selectedNotice =
     analyzedNotices.find((notice) => notice.id === selectedNoticeId) ??
     preferredNotice;
+
   const name = firstName(userName);
 
   function speak(text: string) {
+    setStatus(text);
+
     if (!voiceEnabled || typeof window === "undefined" || !("speechSynthesis" in window)) {
       return;
     }
 
-    window.speechSynthesis.cancel();
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    synth.resume();
+
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "pt-BR";
     utterance.rate = 1.1;
     utterance.pitch = 1.06;
-    const femaleVoice = pickPreferredFemalePtBrVoice(window.speechSynthesis.getVoices());
+
+    const femaleVoice = pickPreferredFemalePtBrVoice(synth.getVoices());
     if (femaleVoice) utterance.voice = femaleVoice;
-    window.speechSynthesis.speak(utterance);
+
+    synth.speak(utterance);
   }
 
-  function assistantSay(text: string, shouldSpeak = true) {
-    setMessages((current) => [...current, { role: "assistant", text }]);
-    if (shouldSpeak) speak(text);
-  }
-
-  useEffect(() => {
-    const storageKey = "provaia-assistant-session";
-    try {
-      const saved = window.sessionStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved) as { messages?: Message[] };
-        if (Array.isArray(parsed.messages) && parsed.messages.length) {
-          setMessages(parsed.messages);
-          setMemoryLoaded(true);
-          return;
-        }
-      }
-    } catch {
-      // Se a memória local falhar, seguimos com uma nova conversa.
+  function greeting() {
+    if (inProgress) {
+      return `Olá, ${name}. Você tem um simulado em andamento com ${inProgress.question_count} questões. Quer continuar ou criar outro?`;
     }
 
-    let greeting = `Olá, ${name}. Que bom ter você por aqui. `;
-
-    if (inProgress) {
-      greeting += `Você tem um simulado em andamento com ${inProgress.question_count} questões. Posso continuar exatamente de onde você parou, ou preparar um novo para você.`;
-    } else if (preferredNotice) {
+    if (preferredNotice) {
       const board = preferredNotice.board_name
         ? ` da banca ${preferredNotice.board_name}`
         : "";
-      greeting += `Já encontrei o edital “${preferredNotice.title}”${board}. Posso criar um novo simulado, conversar sobre seu desempenho ou abrir seus editais.`;
-    } else {
-      greeting +=
-        "Ainda não encontrei um edital analisado na sua conta. Se quiser, eu posso te levar para enviar seu PDF e começar a preparação.";
+      return `Olá, ${name}. Encontrei seu edital “${preferredNotice.title}”${board}. Como quer estudar hoje?`;
     }
 
-    setMessages([{ role: "assistant", text: greeting }]);
-    setMemoryLoaded(true);
-
-    const timer = window.setTimeout(() => speak(greeting), 450);
-    return () => window.clearTimeout(timer);
-    // A saudação deve acontecer apenas na entrada do painel.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!memoryLoaded || typeof window === "undefined") return;
-
-    try {
-      window.sessionStorage.setItem(
-        "provaia-assistant-session",
-        JSON.stringify({
-          messages: messages.slice(-30),
-          updatedAt: new Date().toISOString(),
-        })
-      );
-    } catch {
-      // Memória de sessão é um aprimoramento; a conversa continua sem ela.
-    }
-  }, [messages, memoryLoaded]);
-
-  function openAfterMessage(text: string, href: string) {
-    assistantSay(text);
-    window.setTimeout(() => router.push(href), 800);
+    return `Olá, ${name}. Para começar, envie seu edital em PDF. Depois eu posso montar simulados e acompanhar seu desempenho.`;
   }
 
-  function askQuestionCount(noticeId?: string) {
-    const notice =
-      analyzedNotices.find((item) => item.id === noticeId) ?? selectedNotice;
-
-    if (!notice) return;
-
-    setSelectedNoticeId(notice.id);
-    setAwaitingNotice(false);
-    setAwaitingCount(true);
-
-    const board = notice.board_name ? ` da banca ${notice.board_name}` : "";
-
-    assistantSay(
-      `Perfeito. Vou usar o edital “${notice.title}”${board}. Você quer 10, 20 ou 30 questões? Vou começar no modo adaptativo, usando seu histórico para ajustar a dificuldade.`
-    );
+  function openAssistant() {
+    setOpen(true);
+    window.setTimeout(() => speak(greeting()), 150);
   }
 
-  function beginNewSimulation() {
+  function beginSimulation() {
     if (!preferredNotice) {
-      openAfterMessage(
-        "Para montar um simulado fiel ao concurso, primeiro preciso de um edital analisado. Vou abrir seus editais para você.",
-        "/editais"
-      );
+      speak("Ainda não encontrei um edital analisado. Vou abrir a área de editais.");
+      window.setTimeout(() => router.push("/editais"), 650);
       return;
     }
 
     if (analyzedNotices.length > 1) {
-      setAwaitingNotice(true);
-      const choices = analyzedNotices
-        .slice(0, 4)
-        .map(
-          (notice, index) =>
-            `${index + 1}. ${notice.title}${notice.board_name ? ` — ${notice.board_name}` : ""}`
-        )
-        .join(" ");
-
-      assistantSay(
-        `Você tem mais de um edital analisado. Qual deles quer usar? ${choices}`
-      );
+      setStep("notice");
+      speak("Você tem mais de um edital analisado. Escolha qual quer usar.");
       return;
     }
 
-    askQuestionCount(preferredNotice.id);
+    setSelectedNoticeId(preferredNotice.id);
+    setStep("count");
+    speak("Certo. Quantas questões você quer: 10, 20 ou 30?");
   }
 
   function generateSimulation(count: number) {
@@ -208,218 +146,136 @@ export default function AssistantPanel({
     noticeRef.current.value = selectedNotice.id;
     countRef.current.value = String(count);
     modeRef.current.value = "adaptive";
-    setAwaitingCount(false);
-
-    assistantSay(
-      `Certo, ${name}. Vou preparar ${count} questões no modo adaptativo. Assim que estiver pronto, já abro o simulado para você.`
-    );
+    setStep("idle");
+    speak(`Perfeito. Vou preparar ${count} questões e abrir o simulado para você.`);
 
     window.setTimeout(() => {
       startTransition(() => {
         formRef.current?.requestSubmit();
       });
-    }, 500);
+    }, 450);
   }
 
-  function explainPerformance() {
+  function showPerformance() {
     if (latestScore === null && !weakest) {
-      assistantSay(
-        "Você ainda não concluiu simulados suficientes para eu montar um diagnóstico. Quando finalizar o primeiro, eu vou comparar seus acertos por assunto e te mostrar onde vale concentrar o estudo."
-      );
+      speak("Você ainda não concluiu simulados suficientes para eu montar um diagnóstico.");
       return;
     }
 
     const scoreText =
       latestScore !== null
-        ? `No seu último simulado, você ficou com ${latestScore}% de aproveitamento. `
+        ? `Seu último resultado foi ${latestScore}% de aproveitamento. `
         : "";
 
     const weakestText = weakest
-      ? `Hoje, o ponto que merece mais atenção é ${weakest.subject}, com ${weakest.accuracy}% de acerto acumulado. Posso montar um treino focado nisso depois.`
-      : "Seu desempenho está sendo acompanhado por assunto.";
+      ? `Seu ponto de maior atenção é ${weakest.subject}, com ${weakest.accuracy}% de acerto.`
+      : "";
 
-    assistantSay(scoreText + weakestText);
+    speak(scoreText + weakestText);
   }
 
-  function handleMessage(raw: string) {
-    const text = raw.trim();
-    if (!text) return;
+  function handleIntent(text: string) {
+    const value = normalize(text);
 
-    setMessages((current) => [...current, { role: "user", text }]);
-    setInput("");
+    if (step === "notice") {
+      const byNumber = Number(value.match(/\b([1-4])\b/)?.[1] ?? 0);
+      const chosen =
+        (byNumber ? analyzedNotices[byNumber - 1] : null) ??
+        analyzedNotices.find((notice) => {
+          const title = normalize(notice.title);
+          const board = normalize(notice.board_name ?? "");
+          return (title && value.includes(title)) || (board && value.includes(board));
+        });
 
-    const normalized = text
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
-
-    if (awaitingNotice) {
-      const numericChoice = Number(normalized.match(/\b([1-4])\b/)?.[1] ?? 0);
-      const byNumber = numericChoice
-        ? analyzedNotices[numericChoice - 1]
-        : null;
-
-      const byText = analyzedNotices.find((notice) => {
-        const title = notice.title
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase();
-        const board = (notice.board_name ?? "")
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase();
-
-        return (
-          (title.length > 3 && normalized.includes(title)) ||
-          (board.length > 2 && normalized.includes(board))
-        );
-      });
-
-      const chosen = byNumber ?? byText;
       if (chosen) {
-        askQuestionCount(chosen.id);
-        return;
+        setSelectedNoticeId(chosen.id);
+        setStep("count");
+        speak(`Vou usar “${chosen.title}”. Você quer 10, 20 ou 30 questões?`);
+      } else {
+        speak("Não consegui identificar o edital. Diga o número, o nome do edital ou a banca.");
       }
-
-      assistantSay(
-        "Não consegui identificar qual edital você escolheu. Pode dizer o número da opção, o nome do edital ou o nome da banca?"
-      );
       return;
     }
 
-    if (awaitingCount) {
-      const count = normalized.match(/\b(10|20|30)\b/)?.[1];
+    if (step === "count") {
+      const count = Number(value.match(/\b(10|20|30)\b/)?.[1] ?? 0);
       if (count) {
-        generateSimulation(Number(count));
-        return;
+        generateSimulation(count);
+      } else {
+        speak("Escolha 10, 20 ou 30 questões.");
       }
-
-      assistantSay("Pode me dizer apenas 10, 20 ou 30 questões. Qual quantidade você prefere?");
       return;
     }
 
-    if (
-      normalized.includes("continuar") ||
-      normalized.includes("retomar") ||
-      normalized.includes("onde parei")
-    ) {
+    if (value.includes("continuar") || value.includes("retomar")) {
       if (inProgress) {
-        openAfterMessage(
-          `Claro. Vou abrir seu simulado em andamento com ${inProgress.question_count} questões.`,
-          `/simulados/${inProgress.id}`
-        );
+        speak("Certo. Vou abrir seu simulado em andamento.");
+        window.setTimeout(() => router.push(`/simulados/${inProgress.id}`), 650);
       } else {
-        assistantSay(
-          "Não encontrei nenhum simulado em andamento agora. Se quiser, eu posso criar um novo para você."
-        );
+        speak("Você não tem simulado em andamento.");
       }
       return;
     }
 
-    if (
-      normalized.includes("novo simulado") ||
-      normalized.includes("fazer simulado") ||
-      normalized.includes("criar simulado") ||
-      normalized === "simulado"
-    ) {
-      const requestedCount = normalized.match(/\b(10|20|30)\b/)?.[1];
-
-      if (requestedCount && analyzedNotices.length === 1) {
-        setSelectedNoticeId(analyzedNotices[0].id);
-        window.setTimeout(() => generateSimulation(Number(requestedCount)), 0);
-        return;
-      }
-
-      beginNewSimulation();
+    if (value.includes("simulado")) {
+      beginSimulation();
       return;
     }
 
-    if (
-      normalized.includes("desempenho") ||
-      normalized.includes("resultado") ||
-      normalized.includes("como fui") ||
-      normalized.includes("meus erros")
-    ) {
-      explainPerformance();
+    if (value.includes("desempenho") || value.includes("resultado") || value.includes("como fui")) {
+      showPerformance();
       return;
     }
 
-    if (normalized.includes("abrir desempenho")) {
-      openAfterMessage("Vou abrir seu relatório completo.", "/desempenho");
+    if (value.includes("edital") || value.includes("pdf")) {
+      router.push("/editais");
       return;
     }
 
-    if (normalized.includes("edital") || normalized.includes("pdf")) {
-      if (preferredNotice) {
-        const board = preferredNotice.board_name
-          ? ` A banca identificada é ${preferredNotice.board_name}.`
-          : "";
-        assistantSay(
-          `Seu edital mais recente analisado é “${preferredNotice.title}”.${board} Se quiser, posso usar esse edital para montar um simulado agora.`
-        );
-      } else {
-        openAfterMessage(
-          "Ainda não há edital analisado. Vou abrir a área de editais para você enviar o PDF.",
-          "/editais"
-        );
-      }
-      return;
-    }
-
-    if (normalized.includes("banca")) {
-      if (preferredNotice?.board_name) {
-        assistantSay(
-          `No edital “${preferredNotice.title}”, a banca identificada é ${preferredNotice.board_name}.`
-        );
-      } else {
-        assistantSay(
-          "Ainda não tenho uma banca identificada em um edital analisado. Podemos analisar um edital primeiro."
-        );
-      }
-      return;
-    }
-
-    assistantSay(
-      "Entendi. Posso te ajudar a continuar um simulado, criar um novo, consultar seu desempenho ou trabalhar com seus editais. Você também pode falar comigo pelo microfone."
-    );
+    speak("Posso abrir um simulado, continuar de onde você parou, mostrar seu desempenho ou trabalhar com seus editais.");
   }
 
-  function startListening() {
+  async function startListening() {
     if (typeof window === "undefined") return;
 
-    const SpeechRecognitionConstructor =
-      (window as unknown as { webkitSpeechRecognition?: new () => any })
-        .webkitSpeechRecognition;
+    const Recognition =
+      (window as unknown as { SpeechRecognition?: new () => any }).SpeechRecognition ??
+      (window as unknown as { webkitSpeechRecognition?: new () => any }).webkitSpeechRecognition;
 
-    if (!SpeechRecognitionConstructor) {
-      assistantSay(
-        "Seu navegador não disponibilizou reconhecimento de voz aqui. Você pode continuar digitando normalmente."
-      );
+    if (!Recognition) {
+      setStatus("Reconhecimento de voz não disponível neste navegador.");
       return;
     }
 
-    const recognition = new SpeechRecognitionConstructor();
+    try {
+      if (navigator.mediaDevices?.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    } catch {
+      setStatus("Libere a permissão do microfone no navegador.");
+      return;
+    }
+
+    const recognition = new Recognition();
     recognition.lang = "pt-BR";
     recognition.interimResults = false;
     recognition.continuous = false;
-
-    recognition.onstart = () => setListening(true);
+    recognition.onstart = () => {
+      setListening(true);
+      setStatus("Ouvindo...");
+    };
     recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
+    recognition.onerror = () => {
+      setListening(false);
+      setStatus("Não consegui ouvir. Tente novamente.");
+    };
     recognition.onresult = (event: any) => {
       const transcript = event.results?.[0]?.[0]?.transcript ?? "";
-      if (transcript) handleMessage(transcript);
+      if (transcript) handleIntent(transcript);
     };
-
     recognition.start();
   }
-
-  const quickActions = [
-    ...(inProgress ? ["Continuar meu simulado"] : []),
-    "Quero um novo simulado",
-    "Como está meu desempenho?",
-    preferredNotice ? "Qual é minha banca?" : "Enviar meu edital",
-  ];
 
   if (!open) {
     return (
@@ -433,13 +289,13 @@ export default function AssistantPanel({
               Converse com a IA quando quiser
             </h2>
             <p className="mt-1 text-sm text-slate-400">
-              Abra apenas quando precisar de ajuda, simulado, desempenho ou voz.
+              Simulados, editais, desempenho e voz sem poluir a tela.
             </p>
           </div>
 
           <button
             type="button"
-            onClick={() => setOpen(true)}
+            onClick={openAssistant}
             className="min-h-11 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold hover:bg-violet-500"
           >
             ✨ Abrir Assistente IA
@@ -450,50 +306,109 @@ export default function AssistantPanel({
   }
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-violet-400/20 bg-gradient-to-br from-violet-500/10 via-white/[0.04] to-fuchsia-500/5 shadow-2xl shadow-violet-950/10">
-      <div className="border-b border-white/10 p-5 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-3 w-3">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-40" />
-                <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400" />
-              </span>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300">
-                Assistente Prova IA
-              </p>
+    <section className="rounded-2xl border border-violet-400/20 bg-violet-500/5 p-4 sm:p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300">
+            Assistente Prova IA
+          </p>
+          <h3 className="mt-1 text-lg font-bold">{status}</h3>
+          <p className="mt-1 text-sm text-slate-400">
+            Fale normalmente ou use os atalhos.
+          </p>
+
+          {step === "notice" && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {analyzedNotices.slice(0, 4).map((notice, index) => (
+                <button
+                  key={notice.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedNoticeId(notice.id);
+                    setStep("count");
+                    speak(`Vou usar “${notice.title}”. Você quer 10, 20 ou 30 questões?`);
+                  }}
+                  className="rounded-full border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:border-violet-400/30 hover:bg-violet-400/10"
+                >
+                  {index + 1}. {notice.title}
+                </button>
+              ))}
             </div>
-            <h2 className="mt-2 text-xl font-bold sm:text-2xl">
-              Converse comigo para estudar
-            </h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Texto, voz e ações do sistema no mesmo lugar.
-            </p>
-          </div>
+          )}
 
-          <div className="flex flex-wrap gap-2">
+          {step === "count" && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[10, 20, 30].map((count) => (
+                <button
+                  key={count}
+                  type="button"
+                  onClick={() => generateSimulation(count)}
+                  className="rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-slate-300 hover:border-violet-400/30 hover:bg-violet-400/10"
+                >
+                  {count} questões
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+            }}
+            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
+          >
+            Fechar IA
+          </button>
+
+          <button
+            type="button"
+            onClick={startListening}
+            className={`rounded-xl px-4 py-3 text-sm font-semibold ${
+              listening
+                ? "bg-red-500/20 text-red-300"
+                : "bg-violet-600 text-white hover:bg-violet-500"
+            }`}
+          >
+            {listening ? "● Ouvindo..." : "🎙 Falar com IA"}
+          </button>
+
+          {inProgress && (
             <button
               type="button"
-              onClick={() => setOpen(false)}
-              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10"
+              onClick={() => router.push(`/simulados/${inProgress.id}`)}
+              className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
             >
-              Fechar IA
+              Continuar simulado
             </button>
+          )}
 
-            <button
-              type="button"
-              onClick={() => {
-                try {
-                  window.sessionStorage.removeItem("provaia-assistant-session");
-                } catch {}
-                setMessages([]);
-                setMemoryLoaded(false);
-                window.location.reload();
-              }}
-              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-slate-400 hover:bg-white/10"
-            >
-              Nova conversa
-            </button>
+          <button
+            type="button"
+            onClick={beginSimulation}
+            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
+          >
+            Novo simulado
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push("/editais")}
+            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
+          >
+            Meus editais
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push("/desempenho")}
+            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
+          >
+            Desempenho
+          </button>
 
           <button
             type="button"
@@ -502,102 +417,11 @@ export default function AssistantPanel({
               setVoiceEnabled(next);
               if (!next && "speechSynthesis" in window) window.speechSynthesis.cancel();
             }}
-            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10"
+            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
           >
             {voiceEnabled ? "🔊 Voz ligada" : "🔇 Voz desligada"}
           </button>
-          </div>
         </div>
-      </div>
-
-      <div className="max-h-[430px] space-y-4 overflow-y-auto p-5 sm:p-6">
-        {messages.map((message, index) => (
-          <div
-            key={`${message.role}-${index}`}
-            className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            <div
-              className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[78%] ${
-                message.role === "user"
-                  ? "rounded-br-md bg-violet-600 text-white"
-                  : "rounded-bl-md border border-white/10 bg-slate-900/80 text-slate-200"
-              }`}
-            >
-              {message.text}
-            </div>
-          </div>
-        ))}
-
-        {(isPending || awaitingCount || awaitingNotice) && (
-          <p className="text-xs text-violet-300">
-            {isPending ? "Preparando seu simulado..." : "Estou aguardando sua escolha."}
-          </p>
-        )}
-      </div>
-
-      <div className="border-t border-white/10 p-4 sm:p-5">
-        <div className="mb-3 flex flex-wrap gap-2">
-          {quickActions.map((action) => (
-            <button
-              key={action}
-              type="button"
-              onClick={() => handleMessage(action)}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-violet-400/30 hover:bg-violet-400/10 hover:text-violet-200"
-            >
-              {action}
-            </button>
-          ))}
-        </div>
-
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            handleMessage(input);
-          }}
-          className="flex items-end gap-2"
-        >
-          <div className="min-w-0 flex-1">
-            <label htmlFor="assistant-message" className="sr-only">
-              Converse com o Assistente Prova IA
-            </label>
-            <textarea
-              id="assistant-message"
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  handleMessage(input);
-                }
-              }}
-              rows={1}
-              placeholder="Ex.: quero fazer um simulado novo..."
-              className="max-h-32 min-h-12 w-full resize-none rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-base outline-none transition focus:border-violet-500 sm:text-sm"
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={startListening}
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border text-lg transition ${
-              listening
-                ? "border-red-400/40 bg-red-500/15 text-red-300"
-                : "border-white/10 bg-white/5 hover:border-violet-400/30 hover:bg-violet-400/10"
-            }`}
-            aria-label="Falar com o assistente"
-            title="Falar"
-          >
-            {listening ? "●" : "🎙️"}
-          </button>
-
-          <button
-            type="submit"
-            disabled={!input.trim()}
-            className="flex h-12 shrink-0 items-center justify-center rounded-2xl bg-violet-600 px-4 text-sm font-semibold transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Enviar
-          </button>
-        </form>
       </div>
 
       <form ref={formRef} action={createSimulation} className="hidden">
@@ -605,6 +429,12 @@ export default function AssistantPanel({
         <input ref={countRef} type="hidden" name="question_count" />
         <input ref={modeRef} type="hidden" name="difficulty_mode" />
       </form>
+
+      {isPending && (
+        <p className="mt-3 text-xs font-semibold text-violet-300">
+          Preparando seu simulado...
+        </p>
+      )}
     </section>
   );
 }
