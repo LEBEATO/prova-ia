@@ -54,7 +54,6 @@ export default function AssistantPanel({
 }: AssistantPanelProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [listening, setListening] = useState(false);
   const [status, setStatus] = useState("Pronta para ajudar.");
   const [step, setStep] = useState<Step>("idle");
@@ -78,10 +77,11 @@ export default function AssistantPanel({
 
   const name = firstName(userName);
 
-  function speak(text: string) {
+  function speak(text: string, listenAfter = false) {
     setStatus(text);
 
-    if (!voiceEnabled || typeof window === "undefined" || !("speechSynthesis" in window)) {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      if (listenAfter) window.setTimeout(() => startListening(), 200);
       return;
     }
 
@@ -96,6 +96,12 @@ export default function AssistantPanel({
 
     const femaleVoice = pickPreferredFemalePtBrVoice(synth.getVoices());
     if (femaleVoice) utterance.voice = femaleVoice;
+
+    utterance.onend = () => {
+      if (listenAfter) {
+        window.setTimeout(() => startListening(), 250);
+      }
+    };
 
     synth.speak(utterance);
   }
@@ -117,7 +123,7 @@ export default function AssistantPanel({
 
   function openAssistant() {
     setOpen(true);
-    window.setTimeout(() => speak(greeting()), 150);
+    window.setTimeout(() => speak(greeting(), true), 150);
   }
 
   function beginSimulation() {
@@ -129,13 +135,13 @@ export default function AssistantPanel({
 
     if (analyzedNotices.length > 1) {
       setStep("notice");
-      speak("Você tem mais de um edital analisado. Escolha qual quer usar.");
+      speak("Você tem mais de um edital analisado. Escolha qual quer usar.", true);
       return;
     }
 
     setSelectedNoticeId(preferredNotice.id);
     setStep("count");
-    speak("Certo. Quantas questões você quer: 10, 20 ou 30?");
+    speak("Certo. Quantas questões você quer: 10, 20 ou 30?", true);
   }
 
   function generateSimulation(count: number) {
@@ -190,9 +196,9 @@ export default function AssistantPanel({
       if (chosen) {
         setSelectedNoticeId(chosen.id);
         setStep("count");
-        speak(`Vou usar “${chosen.title}”. Você quer 10, 20 ou 30 questões?`);
+        speak(`Vou usar “${chosen.title}”. Você quer 10, 20 ou 30 questões?`, true);
       } else {
-        speak("Não consegui identificar o edital. Diga o número, o nome do edital ou a banca.");
+        speak("Não consegui identificar o edital. Diga o número, o nome do edital ou a banca.", true);
       }
       return;
     }
@@ -202,7 +208,7 @@ export default function AssistantPanel({
       if (count) {
         generateSimulation(count);
       } else {
-        speak("Escolha 10, 20 ou 30 questões.");
+        speak("Escolha 10, 20 ou 30 questões.", true);
       }
       return;
     }
@@ -232,7 +238,7 @@ export default function AssistantPanel({
       return;
     }
 
-    speak("Posso abrir um simulado, continuar de onde você parou, mostrar seu desempenho ou trabalhar com seus editais.");
+    speak("Posso abrir um simulado, continuar de onde você parou, mostrar seu desempenho ou trabalhar com seus editais.", true);
   }
 
   async function startListening() {
@@ -277,44 +283,20 @@ export default function AssistantPanel({
     recognition.start();
   }
 
-  if (!open) {
-    return (
-      <section className="rounded-2xl border border-violet-400/20 bg-gradient-to-br from-violet-500/10 to-transparent p-4 sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300">
-              Assistente Prova IA
-            </p>
-            <h2 className="mt-1 text-lg font-bold sm:text-xl">
-              Converse com a IA quando quiser
-            </h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Simulados, editais, desempenho e voz sem poluir a tela.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={openAssistant}
-            className="min-h-11 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold hover:bg-violet-500"
-          >
-            ✨ Abrir Assistente IA
-          </button>
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <section className="rounded-2xl border border-violet-400/20 bg-violet-500/5 p-4 sm:p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <section className="rounded-2xl border border-violet-400/20 bg-gradient-to-br from-violet-500/10 to-transparent p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300">
             Assistente Prova IA
           </p>
-          <h3 className="mt-1 text-lg font-bold">{status}</h3>
+          <h2 className="mt-1 text-lg font-bold sm:text-xl">
+            {open ? status : "Converse com a IA"}
+          </h2>
           <p className="mt-1 text-sm text-slate-400">
-            Fale normalmente ou use os atalhos.
+            {open
+              ? "A assistente fala e escuta automaticamente."
+              : "Toque em IA e converse naturalmente por voz."}
           </p>
 
           {step === "notice" && (
@@ -326,7 +308,7 @@ export default function AssistantPanel({
                   onClick={() => {
                     setSelectedNoticeId(notice.id);
                     setStep("count");
-                    speak(`Vou usar “${notice.title}”. Você quer 10, 20 ou 30 questões?`);
+                    speak(`Vou usar “${notice.title}”. Você quer 10, 20 ou 30 questões?`, true);
                   }}
                   className="rounded-full border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:border-violet-400/30 hover:bg-violet-400/10"
                 >
@@ -350,78 +332,25 @@ export default function AssistantPanel({
               ))}
             </div>
           )}
-        </div>
 
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-            }}
-            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
-          >
-            Fechar IA
-          </button>
-
-          <button
-            type="button"
-            onClick={startListening}
-            className={`rounded-xl px-4 py-3 text-sm font-semibold ${
-              listening
-                ? "bg-red-500/20 text-red-300"
-                : "bg-violet-600 text-white hover:bg-violet-500"
-            }`}
-          >
-            {listening ? "● Ouvindo..." : "🎙 Falar com IA"}
-          </button>
-
-          {inProgress && (
-            <button
-              type="button"
-              onClick={() => router.push(`/simulados/${inProgress.id}`)}
-              className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
-            >
-              Continuar simulado
-            </button>
+          {isPending && (
+            <p className="mt-2 text-xs font-semibold text-violet-300">
+              Preparando seu simulado...
+            </p>
           )}
-
-          <button
-            type="button"
-            onClick={beginSimulation}
-            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
-          >
-            Novo simulado
-          </button>
-
-          <button
-            type="button"
-            onClick={() => router.push("/editais")}
-            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
-          >
-            Meus editais
-          </button>
-
-          <button
-            type="button"
-            onClick={() => router.push("/desempenho")}
-            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
-          >
-            Desempenho
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              const next = !voiceEnabled;
-              setVoiceEnabled(next);
-              if (!next && "speechSynthesis" in window) window.speechSynthesis.cancel();
-            }}
-            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
-          >
-            {voiceEnabled ? "🔊 Voz ligada" : "🔇 Voz desligada"}
-          </button>
         </div>
+
+        <button
+          type="button"
+          onClick={open ? startListening : openAssistant}
+          className={`min-h-11 shrink-0 rounded-xl px-5 py-3 text-sm font-semibold transition ${
+            listening
+              ? "bg-red-500/20 text-red-300"
+              : "bg-violet-600 text-white hover:bg-violet-500"
+          }`}
+        >
+          {listening ? "● Ouvindo..." : "✨ IA"}
+        </button>
       </div>
 
       <form ref={formRef} action={createSimulation} className="hidden">
@@ -429,12 +358,6 @@ export default function AssistantPanel({
         <input ref={countRef} type="hidden" name="question_count" />
         <input ref={modeRef} type="hidden" name="difficulty_mode" />
       </form>
-
-      {isPending && (
-        <p className="mt-3 text-xs font-semibold text-violet-300">
-          Preparando seu simulado...
-        </p>
-      )}
     </section>
   );
 }
