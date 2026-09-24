@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createSimulation } from "@/app/simulados/actions";
 import { pickPreferredFemalePtBrVoice } from "@/lib/voice/female-voice";
@@ -77,6 +77,17 @@ export default function AssistantPanel({
     preferredNotice;
 
   const name = firstName(userName);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setOpen(true);
+      speak(greeting(), true);
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+    // Saudação automática apenas ao entrar no dashboard.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function speak(text: string, listenAfter = false) {
     setStatus(text);
