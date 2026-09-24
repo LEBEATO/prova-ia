@@ -40,5 +40,19 @@ export async function signup(formData: FormData) {
     );
   }
 
+  if (data.user?.id) {
+    await supabase
+      .from("profiles")
+      .upsert(
+        {
+          id: data.user.id,
+          email,
+          full_name: fullName,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
+  }
+
   redirect("/dashboard");
 }
