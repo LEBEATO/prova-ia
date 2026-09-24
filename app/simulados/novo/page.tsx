@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { createSimulation } from "../actions";
+import GenerateSimulationButton from "@/components/simulations/GenerateSimulationButton";
 
 type SearchParams = Promise<{ error?: string; notice?: string }>;
 
@@ -124,9 +125,7 @@ export default async function NovoSimuladoPage({
                 </div>
               </div>
 
-              <button type="submit" className="min-h-12 w-full rounded-xl bg-violet-600 px-5 py-3 font-semibold hover:bg-violet-500 sm:w-auto sm:min-w-52">
-                Gerar simulado
-              </button>
+              <GenerateSimulationButton />
             </form>
           )}
         </div>
