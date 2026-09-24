@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { pickPreferredFemalePtBrVoice } from "@/lib/voice/female-voice";
 
 type VoiceOption = {
   key: string;
@@ -87,8 +88,8 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
       utterance.pitch = 1;
 
       const voices = synth.getVoices();
-      const ptBrVoice = voices.find((voice) => voice.lang?.toLowerCase().startsWith("pt-br"));
-      if (ptBrVoice) utterance.voice = ptBrVoice;
+      const femaleVoice = pickPreferredFemalePtBrVoice(voices);
+      if (femaleVoice) utterance.voice = femaleVoice;
 
       utterance.onstart = () => setVoiceStatus("Lendo a questão...");
       utterance.onerror = () =>
