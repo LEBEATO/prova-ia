@@ -29,7 +29,7 @@ export async function login(formData: FormData) {
 
   const supabase = await createClient();
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data: authData, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
@@ -38,6 +38,26 @@ export async function login(formData: FormData) {
     const authCode = "code" in error && typeof error.code === "string" ? error.code : undefined;
     const friendlyMessage = translateLoginError(authCode, error.message);
     redirect(`/login?error=${encodeURIComponent(friendlyMessage)}`);
+  }
+
+  const user = authData.user;
+  const fullName =
+    typeof user?.user_metadata?.full_name === "string"
+      ? user.user_metadata.full_name.trim()
+      : "";
+
+  if (user?.id && fullName) {
+    await supabase
+      .from("profiles")
+      .upsert(
+        {
+          id: user.id,
+          email: user.email ?? email,
+          full_name: fullName,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
   }
 
   redirect("/dashboard");
