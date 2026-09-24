@@ -35,6 +35,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
   const [rate, setRate] = useState(0.95);
   const [lastHeard, setLastHeard] = useState("");
   const [recognitionSupported, setRecognitionSupported] = useState<boolean | null>(null);
+  const [voiceStatus, setVoiceStatus] = useState("Pronto para usar a voz.");
 
   const current = questions[currentIndex] ?? null;
 
@@ -63,24 +64,46 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
   }, [current, questions.length]);
 
   function speak(text: string, listenAfter = false) {
-    if (!voiceEnabled || typeof window === "undefined" || !("speechSynthesis" in window)) {
-      if (listenAfter && autoListen) {
-        window.setTimeout(() => startListening(), 150);
-      }
+    if (typeof window === "undefined") return;
+
+    if (!voiceEnabled) {
+      setVoiceStatus("A voz está desligada.");
       return;
     }
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "pt-BR";
-    utterance.rate = rate;
-    utterance.pitch = 1;
-    utterance.onend = () => {
-      if (listenAfter && autoListen) {
-        window.setTimeout(() => startListening(), 250);
-      }
-    };
-    window.speechSynthesis.speak(utterance);
+    if (!("speechSynthesis" in window)) {
+      setVoiceStatus("Este navegador não oferece leitura em voz alta.");
+      return;
+    }
+
+    try {
+      const synth = window.speechSynthesis;
+      synth.cancel();
+      synth.resume();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "pt-BR";
+      utterance.rate = rate;
+      utterance.pitch = 1;
+
+      const voices = synth.getVoices();
+      const ptBrVoice = voices.find((voice) => voice.lang?.toLowerCase().startsWith("pt-br"));
+      if (ptBrVoice) utterance.voice = ptBrVoice;
+
+      utterance.onstart = () => setVoiceStatus("Lendo a questão...");
+      utterance.onerror = () =>
+        setVoiceStatus("Não consegui reproduzir a voz neste aparelho.");
+      utterance.onend = () => {
+        setVoiceStatus("Leitura concluída.");
+        if (listenAfter && autoListen && recognitionSupported !== false) {
+          window.setTimeout(() => startListening(), 300);
+        }
+      };
+
+      synth.speak(utterance);
+    } catch {
+      setVoiceStatus("Não consegui iniciar a leitura em voz alta.");
+    }
   }
 
   function scrollToQuestion(index: number) {
@@ -226,8 +249,23 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     );
   }
 
-  function startListening() {
+  async function startListening() {
     if (typeof window === "undefined") return;
+
+    setVoiceStatus("Preparando o microfone...");
+
+    try {
+      if (navigator.mediaDevices?.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    } catch {
+      setVoiceStatus(
+        "Permissão do microfone bloqueada. Libere o microfone nas configurações do navegador."
+      );
+      setListening(false);
+      return;
+    }
 
     const SpeechRecognitionConstructor =
       (window as unknown as {
@@ -268,8 +306,8 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     if (!SpeechRecognitionConstructor) {
       setRecognitionSupported(false);
       setAutoListen(false);
-      speak(
-        "Neste navegador, a resposta por voz não está disponível. A leitura em voz alta continua funcionando, e você pode marcar a alternativa tocando na tela."
+      setVoiceStatus(
+        "Resposta por voz não disponível neste navegador. A leitura da questão continua funcionando."
       );
       return;
     }
@@ -279,15 +317,32 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     recognition.interimResults = false;
     recognition.continuous = false;
 
-    recognition.onstart = () => setListening(true);
-    recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
+    recognition.onstart = () => {
+      setListening(true);
+      setVoiceStatus("Ouvindo sua resposta...");
+    };
+    recognition.onend = () => {
+      setListening(false);
+      setVoiceStatus("Microfone encerrado.");
+    };
+    recognition.onerror = () => {
+      setListening(false);
+      setVoiceStatus("Não consegui ouvir. Tente novamente.");
+    };
     recognition.onresult = (event) => {
       const transcript = event.results?.[0]?.[0]?.transcript ?? "";
-      if (transcript) handleCommand(transcript);
+      if (transcript) {
+        setVoiceStatus(`Ouvi: "${transcript}"`);
+        handleCommand(transcript);
+      }
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+    } catch {
+      setListening(false);
+      setVoiceStatus("Não foi possível iniciar o microfone agora.");
+    }
   }
 
   if (!current) return null;
@@ -312,9 +367,12 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
                 ? "Escuta automática ativa: depois da leitura, o microfone abre sozinho."
                 : "Escuta manual: use o botão Responder por voz."}
           </p>
+          <p className="mt-2 text-xs font-medium text-violet-200">
+            {voiceStatus}
+          </p>
           {lastHeard && (
-            <p className="mt-2 text-xs text-slate-500">
-              Ouvi: “{lastHeard}”
+            <p className="mt-1 text-xs text-slate-500">
+              Último comando: “{lastHeard}”
             </p>
           )}
         </div>
@@ -323,7 +381,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
           <button
             type="button"
             onClick={() => speak(speechText, true)}
-            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
+            className="relative z-10 touch-manipulation rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
           >
             🔊 Ler questão
           </button>
@@ -332,7 +390,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
             type="button"
             onClick={startListening}
             disabled={recognitionSupported === false}
-            className={`rounded-xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+            className={`relative z-10 touch-manipulation rounded-xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
               listening
                 ? "bg-red-500/20 text-red-300"
                 : "bg-violet-600 text-white hover:bg-violet-500"
@@ -349,7 +407,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
             type="button"
             onClick={() => setAutoListen((value) => !value)}
             disabled={recognitionSupported === false}
-            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+            className="relative z-10 touch-manipulation rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {recognitionSupported === false
               ? "🎧 Escuta indisponível"
