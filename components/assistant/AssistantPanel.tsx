@@ -49,6 +49,7 @@ export default function AssistantPanel({
 }: AssistantPanelProps) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [memoryLoaded, setMemoryLoaded] = useState(false);
   const [awaitingCount, setAwaitingCount] = useState(false);
@@ -420,6 +421,34 @@ export default function AssistantPanel({
     preferredNotice ? "Qual é minha banca?" : "Enviar meu edital",
   ];
 
+  if (!open) {
+    return (
+      <section className="rounded-2xl border border-violet-400/20 bg-gradient-to-br from-violet-500/10 to-transparent p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300">
+              Assistente Prova IA
+            </p>
+            <h2 className="mt-1 text-lg font-bold sm:text-xl">
+              Converse com a IA quando quiser
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Abra apenas quando precisar de ajuda, simulado, desempenho ou voz.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="min-h-11 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold hover:bg-violet-500"
+          >
+            ✨ Abrir Assistente IA
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="overflow-hidden rounded-3xl border border-violet-400/20 bg-gradient-to-br from-violet-500/10 via-white/[0.04] to-fuchsia-500/5 shadow-2xl shadow-violet-950/10">
       <div className="border-b border-white/10 p-5 sm:p-6">
@@ -443,6 +472,14 @@ export default function AssistantPanel({
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10"
+            >
+              Fechar IA
+            </button>
+
             <button
               type="button"
               onClick={() => {
