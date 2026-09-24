@@ -30,6 +30,7 @@ function normalizeCommand(value: string) {
 
 export default function VoiceSimulationAssistant({ questions }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [open, setOpen] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [autoListen, setAutoListen] = useState(true);
@@ -348,6 +349,31 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
 
   if (!current) return null;
 
+  if (!open) {
+    return (
+      <section className="mt-6 rounded-2xl border border-violet-400/20 bg-violet-500/5 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300">
+              Assistente IA
+            </p>
+            <p className="mt-1 text-sm text-slate-400">
+              Use voz para ouvir e responder às questões.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="min-h-11 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold hover:bg-violet-500"
+          >
+            🎙 Abrir IA por voz
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="mt-6 rounded-2xl border border-violet-400/20 bg-violet-500/5 p-4 sm:p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -379,6 +405,16 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+            }}
+            className="relative z-10 touch-manipulation rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
+          >
+            Fechar IA
+          </button>
           <button
             type="button"
             onClick={() => speak(speechText, true)}
