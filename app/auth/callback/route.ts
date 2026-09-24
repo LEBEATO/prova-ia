@@ -10,6 +10,30 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData.user;
+
+      if (user?.id) {
+        const fullName =
+          typeof user.user_metadata?.full_name === "string"
+            ? user.user_metadata.full_name.trim()
+            : "";
+
+        if (fullName) {
+          await supabase
+            .from("profiles")
+            .upsert(
+              {
+                id: user.id,
+                email: user.email ?? null,
+                full_name: fullName,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "id" }
+            );
+        }
+      }
+
       return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
     }
   }
