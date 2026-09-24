@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { submitSimulation } from "../actions";
 import ReviewAssistant from "@/components/assistant/ReviewAssistant";
+import VoiceSimulationAssistant from "@/components/simulations/VoiceSimulationAssistant";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<{ error?: string; completed?: string }>;
@@ -86,6 +87,32 @@ export default async function SimuladoDetalhesPage({
           .order("accuracy", { ascending: true })
           .limit(12)
       : { data: [] };
+
+  const voiceQuestions =
+    simulation.status !== "completed"
+      ? (links ?? [])
+          .map((link) => {
+            const question = link.question_id ? questionMap.get(link.question_id) : null;
+            if (!question) return null;
+
+            return {
+              linkId: link.id,
+              position: link.position,
+              subject: question.subject || "Não identificado",
+              statement: question.statement,
+              options: Array.isArray(question.options)
+                ? (question.options as Option[])
+                : [],
+            };
+          })
+          .filter(Boolean) as Array<{
+          linkId: string;
+          position: number;
+          subject: string;
+          statement: string;
+          options: Option[];
+        }>
+      : [];
 
   const wrongQuestions =
     simulation.status === "completed"
@@ -197,6 +224,10 @@ export default async function SimuladoDetalhesPage({
           )}
         </div>
 
+        {simulation.status !== "completed" && voiceQuestions.length > 0 && (
+          <VoiceSimulationAssistant questions={voiceQuestions} />
+        )}
+
         <form action={submitSimulation} className="mt-6 space-y-5">
           <input type="hidden" name="simulation_id" value={simulation.id} />
 
@@ -210,7 +241,7 @@ export default async function SimuladoDetalhesPage({
             const answer = answerMap.get(link.id);
 
             return (
-              <article key={link.id} className="rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6">
+              <article id={`question-${link.id}`} key={link.id} className="rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6">
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="rounded-full bg-violet-400/10 px-2.5 py-1 text-violet-300">Questão {link.position}</span>
                   <span className="text-slate-500">{question.subject}</span>
