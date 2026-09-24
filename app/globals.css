@@ -199,3 +199,48 @@ main [class*="blur-3xl"] {
     filter: none !important;
   }
 }
+
+
+/* Prova IA - sistema visual global */
+:root {
+  --prova-surface: rgb(15 23 42 / 0.72);
+  --prova-surface-strong: rgb(15 23 42 / 0.92);
+  --prova-border: rgb(255 255 255 / 0.10);
+  --prova-violet: rgb(139 92 246);
+}
+
+body {
+  background:
+    radial-gradient(circle at 50% -10%, rgb(124 58 237 / 0.10), transparent 28rem),
+    #020617;
+}
+
+main header {
+  border-color: var(--prova-border);
+  background: rgb(2 6 23 / 0.88);
+  backdrop-filter: blur(18px);
+}
+
+main article,
+main aside,
+main section > div[class*="rounded-2xl"],
+main section > div[class*="rounded-3xl"],
+main .grid > * {
+  border-color: var(--prova-border);
+}
+
+main button[class*="bg-violet"],
+main a[class*="bg-violet"] {
+  box-shadow: 0 12px 36px rgb(109 40 217 / 0.18);
+}
+
+@media (max-width: 640px) {
+  main [class*="rounded-3xl"] {
+    border-radius: 1rem;
+  }
+
+  main button,
+  main a {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
