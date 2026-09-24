@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { pickPreferredFemalePtBrVoice } from "@/lib/voice/female-voice";
 
 type WrongQuestion = {
   position: number;
@@ -55,6 +56,9 @@ export default function ReviewAssistant({
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "pt-BR";
     utterance.rate = 0.96;
+    utterance.pitch = 1.03;
+    const femaleVoice = pickPreferredFemalePtBrVoice(window.speechSynthesis.getVoices());
+    if (femaleVoice) utterance.voice = femaleVoice;
     window.speechSynthesis.speak(utterance);
   }
 
