@@ -126,12 +126,65 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
   const [active, setActive] = useState(false);
   const retryRef = useRef(0);
   const currentIndexRef = useRef(0);
+  const advancingRef = useRef(false);
 
   const current = questions[currentIndex] ?? null;
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
+
+  useEffect(() => {
+    if (!active) return;
+
+    function handleManualAnswer(event: Event) {
+      const target = event.target as HTMLInputElement | null;
+      if (!target || target.type !== "radio" || !target.name.startsWith("answer_")) {
+        return;
+      }
+
+      const activeIndex = currentIndexRef.current;
+      const activeQuestion = questions[activeIndex];
+      if (!activeQuestion) return;
+
+      const expectedName = `answer_${activeQuestion.linkId}`;
+      if (target.name !== expectedName || advancingRef.current) {
+        return;
+      }
+
+      const selected = target.value?.toUpperCase();
+      if (!selected) return;
+
+      advancingRef.current = true;
+      retryRef.current = 0;
+      setLastHeard(`Alternativa ${selected} selecionada na tela`);
+
+      if (activeIndex < questions.length - 1) {
+        const nextIndex = activeIndex + 1;
+        speak(`Certo. Alternativa ${selected} marcada. Vamos para a próxima questão.`);
+
+        window.setTimeout(() => {
+          currentIndexRef.current = nextIndex;
+          setCurrentIndex(nextIndex);
+          scrollToQuestion(nextIndex);
+
+          window.setTimeout(() => {
+            advancingRef.current = false;
+            readQuestion(nextIndex);
+          }, 450);
+        }, 650);
+      } else {
+        speak(
+          `Certo. Alternativa ${selected} marcada. Você chegou à última questão. Agora pode finalizar o simulado para ver o resultado.`
+        );
+        setVoiceStatus("Última questão respondida.");
+        advancingRef.current = false;
+      }
+    }
+
+    document.addEventListener("change", handleManualAnswer);
+    return () => document.removeEventListener("change", handleManualAnswer);
+  }, [active, questions]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -245,27 +298,6 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     radio.checked = true;
     radio.dispatchEvent(new Event("change", { bubbles: true }));
     retryRef.current = 0;
-
-    if (activeIndex < questions.length - 1) {
-      const nextIndex = activeIndex + 1;
-
-      speak(`Entendi. Alternativa ${normalizedLetter} registrada. Vamos para a próxima.`);
-
-      window.setTimeout(() => {
-        currentIndexRef.current = nextIndex;
-        setCurrentIndex(nextIndex);
-        scrollToQuestion(nextIndex);
-
-        window.setTimeout(() => {
-          readQuestion(nextIndex);
-        }, 450);
-      }, 650);
-    } else {
-      speak(
-        `Entendi. Alternativa ${normalizedLetter} registrada. Você terminou as questões. Agora pode finalizar o simulado para ver o resultado.`
-      );
-      setVoiceStatus("Simulado respondido por voz.");
-    }
   }
 
   function reprompt() {
