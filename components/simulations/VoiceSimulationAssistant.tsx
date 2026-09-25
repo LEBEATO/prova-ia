@@ -127,12 +127,18 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
   const retryRef = useRef(0);
   const currentIndexRef = useRef(0);
   const advancingRef = useRef(false);
+  const activeRef = useRef(false);
+  const recognitionRef = useRef<{ abort?: () => void; stop?: () => void } | null>(null);
 
   const current = questions[currentIndex] ?? null;
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
+
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
 
   useEffect(() => {
     if (!active) return;
@@ -231,7 +237,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
       utterance.onerror = () =>
         setVoiceStatus("Não consegui reproduzir a voz neste aparelho.");
       utterance.onend = () => {
-        if (listenAfter && recognitionSupported !== false) {
+        if (listenAfter && activeRef.current && recognitionSupported !== false) {
           setVoiceStatus("Agora pode responder.");
           window.setTimeout(() => startListening(), 250);
         } else {
@@ -436,6 +442,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
     }
 
     const recognition = new SpeechRecognitionConstructor();
+    recognitionRef.current = recognition;
     recognition.lang = "pt-BR";
     recognition.interimResults = false;
     recognition.continuous = false;
@@ -450,8 +457,9 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
 
     recognition.onend = () => {
       setListening(false);
+      recognitionRef.current = null;
 
-      if (!receivedResult && active) {
+      if (!receivedResult && activeRef.current) {
         setVoiceStatus("Não ouvi uma resposta.");
       }
     };
@@ -508,11 +516,46 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
   if (!current) return null;
 
   function startAiFlow() {
+    activeRef.current = true;
     setActive(true);
     retryRef.current = 0;
     currentIndexRef.current = currentIndex;
     scrollToQuestion(currentIndexRef.current);
     readQuestion(currentIndexRef.current);
+  }
+
+  function stopAiFlow() {
+    activeRef.current = false;
+    setActive(false);
+    setListening(false);
+    setLastHeard("");
+    setVoiceStatus("IA desligada.");
+    advancingRef.current = false;
+    retryRef.current = 0;
+
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    try {
+      recognitionRef.current?.abort?.();
+    } catch {
+      try {
+        recognitionRef.current?.stop?.();
+      } catch {
+        // O reconhecimento já pode ter sido encerrado pelo navegador.
+      }
+    }
+
+    recognitionRef.current = null;
+  }
+
+  function toggleAiFlow() {
+    if (activeRef.current) {
+      stopAiFlow();
+    } else {
+      startAiFlow();
+    }
   }
 
   return (
@@ -535,14 +578,15 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
 
       <button
         type="button"
-        onClick={listening ? undefined : startAiFlow}
-        disabled={listening}
-        aria-label="Assistente IA do simulado"
-        title="Assistente IA"
+        onClick={toggleAiFlow}
+        aria-label={active ? "Desligar assistente IA" : "Ligar assistente IA"}
+        title={active ? "Desligar IA" : "Ligar IA"}
         className={`fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold shadow-2xl transition sm:bottom-6 sm:right-6 ${
           listening
             ? "bg-red-500 text-white"
-            : "bg-violet-600 text-white hover:bg-violet-500"
+            : active
+              ? "bg-violet-600 text-white hover:bg-violet-500"
+              : "border border-violet-400/30 bg-slate-900 text-violet-300 hover:bg-violet-500/15"
         }`}
       >
         {listening ? "●" : <SiProbot className="h-6 w-6" aria-hidden="true" />}
