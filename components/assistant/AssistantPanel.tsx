@@ -301,7 +301,7 @@ export default function AssistantPanel({
 
   return (
     <section className="rounded-2xl border border-violet-400/20 bg-gradient-to-br from-violet-500/10 to-transparent p-4 sm:p-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300">
             Assistente Prova IA
@@ -359,7 +359,7 @@ export default function AssistantPanel({
         <button
           type="button"
           onClick={open ? startListening : openAssistant}
-          className={`min-h-11 shrink-0 rounded-xl px-5 py-3 text-sm font-semibold transition ${
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl p-0 text-sm font-semibold transition sm:h-11 sm:w-11 ${
             listening
               ? "bg-red-500/20 text-red-300"
               : "bg-violet-600 text-white hover:bg-violet-500"
