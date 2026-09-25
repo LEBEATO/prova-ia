@@ -3,20 +3,36 @@
 import { createClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { signupSchema } from "@/lib/security/schemas";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 
 export async function signup(formData: FormData) {
-  const fullName = String(formData.get("full_name") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
+  const parsed = signupSchema.safeParse({
+    fullName: String(formData.get("full_name") ?? ""),
+    email: String(formData.get("email") ?? ""),
+    password: String(formData.get("password") ?? ""),
+  });
 
-  if (!fullName || !email || password.length < 6) {
+  if (!parsed.success) {
     redirect(
-      "/cadastro?error=Preencha%20os%20campos%20e%20use%20uma%20senha%20com%20pelo%20menos%206%20caracteres"
+      "/cadastro?error=Confira%20nome,%20email%20e%20use%20uma%20senha%20com%20pelo%20menos%208%20caracteres"
     );
   }
 
+  const { fullName, email, password } = parsed.data;
   const supabase = await createClient();
   const headerStore = await headers();
+  const forwardedFor = headerStore.get("x-forwarded-for") ?? "";
+  const ip = forwardedFor.split(",")[0]?.trim() || "unknown";
+  const rate = checkRateLimit(`signup:${ip}`, {
+    limit: 5,
+    windowMs: 60 * 60 * 1000,
+  });
+
+  if (!rate.allowed) {
+    redirect("/cadastro?error=Muitas%20tentativas%20de%20cadastro.%20Tente%20mais%20tarde.");
+  }
+
   const origin = headerStore.get("origin") ?? "http://localhost:3000";
 
   const { data, error } = await supabase.auth.signUp({
