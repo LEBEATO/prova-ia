@@ -65,6 +65,8 @@ export default function AssistantPanel({
   const noticeRef = useRef<HTMLInputElement>(null);
   const countRef = useRef<HTMLInputElement>(null);
   const modeRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const assistantActiveRef = useRef(false);
 
   const analyzedNotices = useMemo(
     () => notices.filter((notice) => notice.analysis_status === "completed"),
@@ -80,11 +82,20 @@ export default function AssistantPanel({
 
   useEffect(() => {
     const timer = globalThis.setTimeout(() => {
+      assistantActiveRef.current = true;
       setOpen(true);
       speak(greeting(), true);
     }, 700);
 
-    return () => globalThis.clearTimeout(timer);
+    return () => {
+      globalThis.clearTimeout(timer);
+      assistantActiveRef.current = false;
+      recognitionRef.current?.abort?.();
+      recognitionRef.current = null;
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
     // Saudação automática apenas ao entrar no dashboard.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -114,7 +125,7 @@ export default function AssistantPanel({
     if (femaleVoice) utterance.voice = femaleVoice;
 
     utterance.onend = () => {
-      if (listenAfter) {
+      if (listenAfter && assistantActiveRef.current) {
         globalThis.setTimeout(() => startListening(), 250);
       }
     };
@@ -138,8 +149,24 @@ export default function AssistantPanel({
   }
 
   function openAssistant() {
+    assistantActiveRef.current = true;
     setOpen(true);
-    globalThis.setTimeout(() => speak(greeting(), true), 150);
+    globalThis.setTimeout(() => {
+      if (assistantActiveRef.current) speak(greeting(), true);
+    }, 150);
+  }
+
+  function closeAssistant() {
+    assistantActiveRef.current = false;
+    recognitionRef.current?.abort?.();
+    recognitionRef.current = null;
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setListening(false);
+    setStep("idle");
+    setOpen(false);
+    setStatus("Pronta para ajudar.");
   }
 
   function beginSimulation() {
@@ -258,7 +285,7 @@ export default function AssistantPanel({
   }
 
   async function startListening() {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !assistantActiveRef.current) return;
 
     const Recognition =
       (window as unknown as { SpeechRecognition?: new () => any }).SpeechRecognition ??
@@ -279,7 +306,9 @@ export default function AssistantPanel({
       return;
     }
 
+    recognitionRef.current?.abort?.();
     const recognition = new Recognition();
+    recognitionRef.current = recognition;
     recognition.lang = "pt-BR";
     recognition.interimResults = false;
     recognition.continuous = false;
@@ -287,7 +316,10 @@ export default function AssistantPanel({
       setListening(true);
       setStatus("Ouvindo...");
     };
-    recognition.onend = () => setListening(false);
+    recognition.onend = () => {
+      if (recognitionRef.current === recognition) recognitionRef.current = null;
+      setListening(false);
+    };
     recognition.onerror = () => {
       setListening(false);
       setStatus("Não consegui ouvir. Tente novamente.");
@@ -358,7 +390,9 @@ export default function AssistantPanel({
 
         <button
           type="button"
-          onClick={open ? startListening : openAssistant}
+          onClick={open ? closeAssistant : openAssistant}
+          aria-pressed={open}
+          aria-label={open ? "Desligar assistente de voz" : "Ligar assistente de voz"}
           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl p-0 text-sm font-semibold transition sm:h-11 sm:w-11 ${
             listening
               ? "bg-red-500/20 text-red-300"
