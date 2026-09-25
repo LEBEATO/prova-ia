@@ -561,7 +561,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
   return (
     <>
       {active && (
-        <div className="fixed bottom-24 right-6 z-40 max-w-[min(78vw,280px)] rounded-2xl border border-violet-400/20 bg-slate-950/95 px-3 py-2 text-xs text-slate-300 shadow-2xl backdrop-blur sm:bottom-24 sm:right-6">
+        <div className="fixed bottom-36 right-6 z-40 max-w-[min(78vw,280px)] rounded-2xl border border-violet-400/20 bg-slate-950/95 px-3 py-2 text-xs text-slate-300 shadow-2xl backdrop-blur sm:bottom-24 sm:right-6">
           <p className="font-semibold text-violet-300">
             Questão {current.position} de {questions.length}
           </p>
@@ -581,7 +581,7 @@ export default function VoiceSimulationAssistant({ questions }: Props) {
         onClick={toggleAiFlow}
         aria-label={active ? "Desligar assistente IA" : "Ligar assistente IA"}
         title={active ? "Desligar IA" : "Ligar IA"}
-        className={`fixed bottom-8 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold shadow-2xl transition sm:bottom-6 sm:right-6 ${
+        className={`fixed bottom-20 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold shadow-2xl transition sm:bottom-6 sm:right-6 ${
           listening
             ? "bg-red-500 text-white"
             : active
