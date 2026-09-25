@@ -79,12 +79,12 @@ export default function AssistantPanel({
   const name = firstName(userName);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    const timer = globalThis.setTimeout(() => {
       setOpen(true);
       speak(greeting(), true);
     }, 700);
 
-    return () => window.clearTimeout(timer);
+    return () => globalThis.clearTimeout(timer);
     // Saudação automática apenas ao entrar no dashboard.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -92,8 +92,12 @@ export default function AssistantPanel({
   function speak(text: string, listenAfter = false) {
     setStatus(text);
 
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      if (listenAfter) window.setTimeout(() => startListening(), 200);
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!("speechSynthesis" in globalThis)) {
+      if (listenAfter) globalThis.setTimeout(() => startListening(), 200);
       return;
     }
 
@@ -111,7 +115,7 @@ export default function AssistantPanel({
 
     utterance.onend = () => {
       if (listenAfter) {
-        window.setTimeout(() => startListening(), 250);
+        globalThis.setTimeout(() => startListening(), 250);
       }
     };
 
@@ -135,13 +139,13 @@ export default function AssistantPanel({
 
   function openAssistant() {
     setOpen(true);
-    window.setTimeout(() => speak(greeting(), true), 150);
+    globalThis.setTimeout(() => speak(greeting(), true), 150);
   }
 
   function beginSimulation() {
     if (!preferredNotice) {
       speak("Ainda não encontrei um edital analisado. Vou abrir a área de editais.");
-      window.setTimeout(() => router.push("/editais"), 650);
+      globalThis.setTimeout(() => router.push("/editais"), 650);
       return;
     }
 
@@ -167,7 +171,7 @@ export default function AssistantPanel({
     setStep("idle");
     speak(`Perfeito. Vou preparar ${count} questões e abrir o simulado para você.`);
 
-    window.setTimeout(() => {
+    globalThis.setTimeout(() => {
       startTransition(() => {
         formRef.current?.requestSubmit();
       });
@@ -228,7 +232,7 @@ export default function AssistantPanel({
     if (value.includes("continuar") || value.includes("retomar")) {
       if (inProgress) {
         speak("Certo. Vou abrir seu simulado em andamento.");
-        window.setTimeout(() => router.push(`/simulados/${inProgress.id}`), 650);
+        globalThis.setTimeout(() => router.push(`/simulados/${inProgress.id}`), 650);
       } else {
         speak("Você não tem simulado em andamento.");
       }
