@@ -5,19 +5,33 @@ import { buildMockQuestions } from "@/lib/simulations/mock";
 import { difficultySchedule, profileForMode, type DifficultyMode } from "@/lib/simulations/adaptive";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-
-function normalizeCount(value: FormDataEntryValue | null) {
-  const count = Number(value);
-  return [10, 20, 30].includes(count) ? count : 30;
-}
+import {
+  createSimulationSchema,
+  submitSimulationSchema,
+  uuidSchema,
+} from "@/lib/security/schemas";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 
 export async function createSimulation(formData: FormData) {
-  const noticeId = String(formData.get("notice_id") ?? "");
-  const questionCount = normalizeCount(formData.get("question_count"));
-  const requestedMode = String(formData.get("difficulty_mode") ?? "adaptive") as DifficultyMode;
-  const difficultyMode: DifficultyMode = ["adaptive", "beginner", "intermediate", "advanced", "board"].includes(requestedMode)
-    ? requestedMode
-    : "adaptive";
+  const parsed = createSimulationSchema.safeParse({
+    noticeId: String(formData.get("notice_id") ?? ""),
+    questionCount: formData.get("question_count"),
+    difficultyMode: String(formData.get("difficulty_mode") ?? "adaptive"),
+  });
+
+  if (!parsed.success) {
+    redirect("/simulados/novo?error=Dados%20do%20simulado%20inválidos");
+  }
+
+  const {
+    noticeId,
+    questionCount,
+    difficultyMode,
+  }: {
+    noticeId: string;
+    questionCount: number;
+    difficultyMode: DifficultyMode;
+  } = parsed.data;
 
   const supabase = await createClient();
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
@@ -27,11 +41,20 @@ export async function createSimulation(formData: FormData) {
   }
 
   const userId = claimsData.claims.sub;
+  const rate = checkRateLimit(`simulation-create:${userId}`, {
+    limit: 10,
+    windowMs: 60 * 60 * 1000,
+  });
+
+  if (!rate.allowed) {
+    redirect("/simulados/novo?error=Muitos%20simulados%20criados%20em%20pouco%20tempo");
+  }
 
   const { data: notice } = await supabase
     .from("notices")
     .select("id, title, analysis_status")
     .eq("id", noticeId)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (!notice || notice.analysis_status !== "completed") {
@@ -148,7 +171,15 @@ export async function createSimulation(formData: FormData) {
 }
 
 export async function submitSimulation(formData: FormData) {
-  const simulationId = String(formData.get("simulation_id") ?? "");
+  const parsed = submitSimulationSchema.safeParse({
+    simulationId: String(formData.get("simulation_id") ?? ""),
+  });
+
+  if (!parsed.success) {
+    redirect("/simulados?error=Simulado%20inválido");
+  }
+
+  const simulationId = parsed.data.simulationId;
   const supabase = await createClient();
 
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
@@ -318,7 +349,15 @@ export async function submitSimulation(formData: FormData) {
 
 
 export async function deleteSimulation(formData: FormData) {
-  const simulationId = String(formData.get("simulation_id") ?? "");
+  const parsedSimulationId = uuidSchema.safeParse(
+    String(formData.get("simulation_id") ?? "")
+  );
+
+  if (!parsedSimulationId.success) {
+    redirect("/simulados?error=Simulado%20inválido");
+  }
+
+  const simulationId = parsedSimulationId.data;
   const supabase = await createClient();
 
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
