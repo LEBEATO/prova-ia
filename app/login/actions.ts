@@ -2,6 +2,9 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { loginSchema } from "@/lib/security/schemas";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 
 function translateLoginError(code?: string, message?: string) {
   if (code === "email_not_confirmed" || message?.toLowerCase().includes("email not confirmed")) {
@@ -20,11 +23,26 @@ function translateLoginError(code?: string, message?: string) {
 }
 
 export async function login(formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
+  const parsed = loginSchema.safeParse({
+    email: String(formData.get("email") ?? ""),
+    password: String(formData.get("password") ?? ""),
+  });
 
-  if (!email || !password) {
-    redirect("/login?error=Preencha%20email%20e%20senha");
+  if (!parsed.success) {
+    redirect("/login?error=Email%20ou%20senha%20inválidos");
+  }
+
+  const { email, password } = parsed.data;
+  const headerStore = await headers();
+  const forwardedFor = headerStore.get("x-forwarded-for") ?? "";
+  const ip = forwardedFor.split(",")[0]?.trim() || "unknown";
+  const rate = checkRateLimit(`login:${ip}`, {
+    limit: 10,
+    windowMs: 10 * 60 * 1000,
+  });
+
+  if (!rate.allowed) {
+    redirect("/login?error=Muitas%20tentativas.%20Aguarde%20alguns%20minutos.");
   }
 
   const supabase = await createClient();
