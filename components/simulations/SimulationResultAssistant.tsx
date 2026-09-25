@@ -122,7 +122,7 @@ export default function SimulationResultAssistant({
   return (
     <>
       {active && (
-        <div className="fixed bottom-24 right-6 z-40 max-w-[min(80vw,320px)] rounded-2xl border border-violet-400/20 bg-slate-950/95 px-3 py-3 text-xs text-slate-300 shadow-2xl backdrop-blur sm:bottom-24 sm:right-6">
+        <div className="fixed bottom-36 right-6 z-40 max-w-[min(80vw,320px)] rounded-2xl border border-violet-400/20 bg-slate-950/95 px-3 py-3 text-xs text-slate-300 shadow-2xl backdrop-blur sm:bottom-24 sm:right-6">
           <p className="font-semibold text-violet-300">
             Resultado do simulado
           </p>
@@ -162,7 +162,7 @@ export default function SimulationResultAssistant({
         }}
         aria-label={active ? "Fechar análise da IA" : "Abrir análise da IA"}
         title={active ? "Fechar IA" : "Abrir IA"}
-        className={`fixed bottom-8 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold shadow-2xl transition sm:bottom-6 sm:right-6 ${
+        className={`fixed bottom-20 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold shadow-2xl transition sm:bottom-6 sm:right-6 ${
           speaking
             ? "bg-red-500 text-white"
             : active
