@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { uploadNoticeSchema } from "@/lib/security/schemas";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
@@ -16,7 +17,15 @@ export async function uploadNotice(formData: FormData) {
 
   const userId = claimsData.claims.sub;
   const file = formData.get("file");
-  const customTitle = String(formData.get("title") ?? "").trim();
+  const parsed = uploadNoticeSchema.safeParse({
+    title: String(formData.get("title") ?? ""),
+  });
+
+  if (!parsed.success) {
+    redirect("/editais?error=Título%20inválido");
+  }
+
+  const customTitle = parsed.data.title;
 
   if (!(file instanceof File) || file.size === 0) {
     redirect("/editais?error=Selecione%20um%20arquivo%20PDF");
@@ -24,6 +33,12 @@ export async function uploadNotice(formData: FormData) {
 
   if (file.type !== "application/pdf") {
     redirect("/editais?error=O%20arquivo%20precisa%20ser%20um%20PDF");
+  }
+
+  const signatureBuffer = await file.slice(0, 5).arrayBuffer();
+  const signature = new TextDecoder().decode(signatureBuffer);
+  if (signature !== "%PDF-") {
+    redirect("/editais?error=O%20arquivo%20enviado%20não%20é%20um%20PDF%20válido");
   }
 
   if (file.size > MAX_FILE_SIZE) {
