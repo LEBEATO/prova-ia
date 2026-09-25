@@ -4,6 +4,8 @@ import { analyzeNoticePdf } from "@/lib/ai/analyze-notice";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { uuidSchema } from "@/lib/security/schemas";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 
 function safeDate(value: string) {
   if (!value) return null;
@@ -12,11 +14,15 @@ function safeDate(value: string) {
 }
 
 export async function analyzeNotice(formData: FormData) {
-  const noticeId = String(formData.get("notice_id") ?? "");
+  const parsedNoticeId = uuidSchema.safeParse(
+    String(formData.get("notice_id") ?? "")
+  );
 
-  if (!noticeId) {
+  if (!parsedNoticeId.success) {
     redirect("/editais?error=Edital%20inválido");
   }
+
+  const noticeId = parsedNoticeId.data;
 
   const supabase = await createClient();
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
@@ -26,11 +32,22 @@ export async function analyzeNotice(formData: FormData) {
   }
 
   const userId = claimsData.claims.sub;
+  const rate = checkRateLimit(`notice-analysis:${userId}`, {
+    limit: 5,
+    windowMs: 60 * 60 * 1000,
+  });
+
+  if (!rate.allowed) {
+    redirect(
+      `/editais/${noticeId}?error=Muitas%20análises%20em%20pouco%20tempo.%20Tente%20mais%20tarde.`
+    );
+  }
 
   const { data: notice, error: noticeError } = await supabase
     .from("notices")
     .select("id, file_path")
     .eq("id", noticeId)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (noticeError || !notice?.file_path) {
@@ -40,7 +57,8 @@ export async function analyzeNotice(formData: FormData) {
   await supabase
     .from("notices")
     .update({ analysis_status: "processing" })
-    .eq("id", noticeId);
+    .eq("id", noticeId)
+    .eq("user_id", userId);
 
   try {
     const { data: signedUrlData, error: signedUrlError } = await supabase.storage
@@ -110,7 +128,8 @@ export async function analyzeNotice(formData: FormData) {
         analysis_status: "completed",
         exam_date: safeDate(analysis.exam_date),
       })
-      .eq("id", noticeId);
+      .eq("id", noticeId)
+    .eq("user_id", userId);
 
     if (updateNoticeError) {
       throw updateNoticeError;
@@ -122,7 +141,8 @@ export async function analyzeNotice(formData: FormData) {
     await supabase
       .from("notices")
       .update({ analysis_status: "failed" })
-      .eq("id", noticeId);
+      .eq("id", noticeId)
+    .eq("user_id", userId);
 
     const message =
       error instanceof Error ? error.message : "Falha ao analisar o edital.";
