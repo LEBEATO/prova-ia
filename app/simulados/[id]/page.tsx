@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { submitSimulation } from "../actions";
 import ReviewAssistant from "@/components/assistant/ReviewAssistant";
 import VoiceSimulationAssistant from "@/components/simulations/VoiceSimulationAssistant";
+import SimulationResultAssistant from "@/components/simulations/SimulationResultAssistant";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<{ error?: string; completed?: string }>;
@@ -308,6 +309,17 @@ export default async function SimuladoDetalhesPage({
             </div>
           )}
         </form>
+
+        {simulation.status === "completed" && (
+          <SimulationResultAssistant
+            userName={userName}
+            score={Number(simulation.score ?? 0)}
+            correctAnswers={Number(simulation.correct_answers ?? 0)}
+            wrongAnswers={Number(simulation.wrong_answers ?? 0)}
+            totalQuestions={Number(simulation.question_count ?? 0)}
+            questions={wrongQuestions}
+          />
+        )}
 
         {simulation.status === "completed" && (
           <ReviewAssistant
